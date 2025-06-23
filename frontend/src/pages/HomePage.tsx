@@ -358,6 +358,9 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center p-4 md:p-8">
+      <div style={{ position: 'fixed', top: 0, left: 0, background: 'yellow', padding: '10px', zIndex: 1000, color: 'black' }}>
+        DEBUG: Supabase URL = {import.meta.env.VITE_SUPABASE_URL}
+      </div>
       <Toaster richColors position="top-right" />
       <div className="container mx-auto max-w-6xl">
         <header className="mb-12 text-center">
