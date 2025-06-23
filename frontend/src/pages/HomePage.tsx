@@ -283,9 +283,7 @@ const HomePage: React.FC = () => {
     try {
       // Supabase Storage URLs are typically public and directly accessible if configured correctly.
       // The replace logic might be specific to local Docker setup if Kong is involved.
-      const audioUrl = chapterToDownload.audio_url.includes('http://kong:8000') 
-        ? chapterToDownload.audio_url.replace('http://kong:8000', 'http://localhost:54321') 
-        : chapterToDownload.audio_url;
+      const audioUrl = chapterToDownload.audio_url;
 
       toast.info(`Preparing download for ${chapterToDownload.title || 'chapter'}...`);
       const response = await fetch(audioUrl);
@@ -323,9 +321,7 @@ const HomePage: React.FC = () => {
     const chapterToPlay = chapters.find(ch => ch.id === chapterId);
 
     if (chapterToPlay && chapterToPlay.audio_url) {
-      const audioUrl = chapterToPlay.audio_url.includes('http://kong:8000') 
-        ? chapterToPlay.audio_url.replace('http://kong:8000', 'http://localhost:54321') 
-        : chapterToPlay.audio_url;
+      const audioUrl = chapterToPlay.audio_url;
       console.log(`Playing audio from: ${audioUrl} for chapter ${chapterId}`);
       const newAudio = new Audio(audioUrl);
 
@@ -358,9 +354,7 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center p-4 md:p-8">
-      <div style={{ position: 'fixed', top: 0, left: 0, background: 'yellow', padding: '10px', zIndex: 1000, color: 'black' }}>
-        DEBUG: Supabase URL = {import.meta.env.VITE_SUPABASE_URL}
-      </div>
+
       <Toaster richColors position="top-right" />
       <div className="container mx-auto max-w-6xl">
         <header className="mb-12 text-center">
