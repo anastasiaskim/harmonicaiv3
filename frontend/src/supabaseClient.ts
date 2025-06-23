@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+console.log('Supabase URL:', supabaseUrl); // Add this line for debugging
+
 if (!supabaseUrl) {
   throw new Error("VITE_SUPABASE_URL is not defined. Please check your .env.local file.");
 }
