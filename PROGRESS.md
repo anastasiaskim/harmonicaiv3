@@ -1,5 +1,27 @@
 # Project Progress Log
 
+## 2025-06-23: Production Deployment
+
+**Objective:** Deploy the full-stack application to production-ready hosting services (Vercel and Supabase).
+
+**Steps Taken:**
+
+1.  **Frontend Deployment (Vercel):**
+    *   Generated the production build for the React frontend using the `npm run build` command, creating an optimized `dist` directory.
+    *   Guided the user to deploy the static assets from the `dist` directory to Vercel.
+    *   Identified and communicated the required environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) to be configured in the Vercel project settings.
+
+2.  **Backend Deployment (Supabase):**
+    *   Guided the user to authenticate with the Supabase CLI using `supabase login`.
+    *   Successfully deployed all four Supabase Edge Functions using the `supabase functions deploy <function_name>` command:
+        *   `generate-audio-batch`
+        *   `generate-audio-from-text`
+        *   `get-audiobook-details`
+        *   `upload-ebook`
+    *   Reminded the user to configure the necessary secrets (`ELEVENLABS_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) in their Supabase project dashboard.
+
+**Outcome:** The application has been successfully deployed. The frontend is live on Vercel, and the backend Edge Functions are operational on Supabase, completing the deployment phase of the project.
+
 ## 2025-06-23: General Testing & Documentation
 
 **Objective:** Solidify the application's stability by enhancing the test suite and documenting the architecture for future development.
