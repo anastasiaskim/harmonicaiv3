@@ -20,12 +20,8 @@ This document outlines the product requirements for the first major vertical sli
     - Display of loading/processing states during audio generation.
     - Basic error message display for failed operations.
 - **Backend (Supabase Edge Functions):**
-    - Endpoint to receive .txt file or pasted text.
-    - Validation of input (e.g., text is not empty, file is .txt).
-    - Storage of the input text (e.g., in Supabase PostgreSQL or temporary storage if not persisted long-term for this slice).
-    - Integration with ElevenLabs API to convert the received text to audio using the selected voice.
-    - Storage of the generated audio file (MP3) in Supabase Storage.
-    - Endpoint to return the URL or stream of the generated audio to the frontend.
+    - `upload-ebook` Edge Function to receive .txt file or pasted text, validate input, and create `ebooks` and `chapters` records in Supabase PostgreSQL with the input text.
+    - `generate-audio` Edge Function to take a chapter ID and voice ID, integrate with ElevenLabs API to convert the chapter's text to audio, store the generated MP3 in Supabase Storage, and return its URL.
 - **Infrastructure:**
     - Basic Supabase setup (relevant tables for text/audio metadata if needed, storage bucket for audio).
 
@@ -68,13 +64,18 @@ This document outlines the product requirements for the first major vertical sli
 
 ### 4.2. Backend (Supabase Edge Functions)
 
-- **FR1.9 (Text Reception & Validation):** The `/process-text` (or similar) Edge Function shall accept input text (from file upload or paste).
+- **FR1.9 (Text Reception & Initial Processing):** The `upload-ebook` Edge Function shall accept input text (from file upload or paste).
     - It shall validate that the text is not empty.
     - For file uploads, it shall validate the file type is `.txt`.
-- **FR1.10 (ElevenLabs API Call):** The Edge Function shall make an API call to ElevenLabs using the provided text and selected `voice_id`.
+    - It shall create an `ebooks` record and a single `chapters` record containing the full input text, marking it as "pending_tts".
+    - It shall return the `ebook_id` and `chapter_id`.
+- **FR1.10 (TTS Conversion):** The `generate-audio` Edge Function shall accept a `chapter_id` and `voice_id`.
+    - It shall retrieve the chapter's text.
+    - It shall make an API call to ElevenLabs using the chapter text and selected `voice_id`.
     - It must securely handle the ElevenLabs API key.
-- **FR1.11 (Audio Storage):** The Edge Function shall receive the audio stream/file from ElevenLabs and store it as an MP3 file in a designated Supabase Storage bucket.
-- **FR1.12 (Audio URL Return):** The Edge Function shall return a publicly accessible URL (or a temporary signed URL if bucket is private) of the stored MP3 file to the frontend.
+- **FR1.11 (Audio Storage):** The `generate-audio` Edge Function shall receive the audio stream/file from ElevenLabs and store it as an MP3 file in a designated Supabase Storage bucket (e.g., `audiobook-outputs/ebook_id/chapter_1.mp3`).
+    - It shall update the `chapters` record with the `audio_url` and status "complete".
+- **FR1.12 (Audio URL Return):** The `generate-audio` Edge Function shall return the `audio_url` of the stored MP3 file to the frontend.
 - **FR1.13 (Error Handling):** The Edge Function shall return appropriate error responses (e.g., HTTP status codes, error messages) if any step in the process fails (e.g., ElevenLabs API error, storage error).
 
 ## 5. Non-Functional Requirements (for this slice)

@@ -68,7 +68,7 @@ This document outlines product requirements for the third major vertical slice. 
 
 - **FR3.10 (Audio File Accessibility):** Audio files stored in Supabase Storage must be configured to allow direct download by the user's browser. This might involve ensuring files have correct `Content-Disposition` headers or using public URLs.
     - If buckets are private, Edge Functions may need to generate and return short-lived signed URLs for download requests.
-- **FR3.11 (ZIP Generation - Optional):** If "Download All" is implemented, an Edge Function shall:
+- **FR3.11 (ZIP Generation - Optional):** If "Download All" is implemented, the `zip-chapters` Edge Function shall:
     - Accept an `ebook_id`.
     - Retrieve all associated audio chapter files from Supabase Storage.
     - Create a ZIP archive containing these files in memory or temporary storage.

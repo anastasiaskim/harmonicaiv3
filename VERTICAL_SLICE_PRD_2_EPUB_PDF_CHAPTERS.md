@@ -65,7 +65,7 @@ This document outlines the product requirements for the second major vertical sl
 
 ### 4.2. Backend (Supabase Edge Functions)
 
-- **FR2.8 (EPUB/PDF Reception & Validation):** The `/process-ebook` (or similar) Edge Function shall accept `.epub` and `.pdf` files.
+- **FR2.8 (EPUB/PDF Reception & Validation):** The `upload-ebook` (Version 2) Edge Function shall accept `.epub` and `.pdf` files.
     - It shall validate file types.
     - It shall store the uploaded ebook file in Supabase Storage (`ebook-uploads` bucket).
     - It shall create an entry in the `ebooks` table in Supabase PostgreSQL.
@@ -74,11 +74,11 @@ This document outlines the product requirements for the second major vertical sl
 - **FR2.11 (Chapterization Logic):**
     - For EPUBs: Utilize the identified chapter structure.
     - For PDFs (and TXT if not already chapterized): Implement basic heuristics to split text into manageable sections if no explicit chapters are found (e.g., by a certain character/word count, or based on common heading patterns if detectable, though this is advanced).
-- **FR2.12 (Chapter-based TTS):** For each identified chapter/section:
+- **FR2.12 (Chapter-based TTS):** The `generate-audio` (Version 2) Edge Function will be responsible for TTS. For each identified chapter/section:
     - Call ElevenLabs API with the chapter's text and selected voice.
     - Store the generated audio MP3 in Supabase Storage (e.g., `audiobook-outputs/ebook_id/chapter_X.mp3`).
     - Create an entry in the `audio_chapters` table in PostgreSQL, linking to the `ebooks` table, and storing chapter number, title (if available), and the audio file URL.
-- **FR2.13 (Return Chapter List):** An Edge Function (e.g., `/get-audiobook-chapters?ebook_id=...`) shall return a list of all processed chapters (metadata including title, audio URL) for a given `ebook_id`.
+- **FR2.13 (Return Chapter List):** The `get-audiobook-details` Edge Function shall return a list of all processed chapters (metadata including title, audio URL) for a given `ebook_id`.
 
 ## 5. Non-Functional Requirements (for this slice)
 
