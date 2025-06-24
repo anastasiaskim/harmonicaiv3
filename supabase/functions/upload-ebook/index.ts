@@ -1,191 +1,80 @@
-// Note: Deno-specific and URL imports will show errors in a standard TS environment.
-// These are resolved by the Deno runtime and can be ignored.
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// supabase/functions/upload-ebook/index.ts
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import parseEpub from 'https://esm.sh/epub-parse';
-import pdf from 'https://esm.sh/pdf-extraction';
 
-console.log('`upload-ebook` function initializing...');
+// Basic text splitting function (you can replace this with a more sophisticated one)
+function splitIntoChapters(text: string): string[] {
+  const chapterMarkers = ["Chapter 1", "Chapter 2", "Chapter 3", "Chapter 4", "Chapter 5", "Chapter 6", "Chapter 7", "Chapter 8", "Chapter 9", "Chapter 10"]; // Add more as needed
+  let content = text;
+  const chapters: string[] = [];
 
-// Helper function to strip HTML tags
-const stripHtml = (html: string) => html.replace(/<[^>]*>?/gm, '');
-
-// Helper function to split text into chapters
-const splitTextIntoChapters = (text: string): { title: string; text_content: string }[] => {
-  const chapters: { title: string; text_content: string }[] = [];
-  // Regex to find chapter headings like "Chapter 1", "CHAPTER X", "Part I", etc.
-  const chapterRegex = /^(Chapter|CHAPTER|Part|PART)\s+[\dIVXLC]+\s*.*$/m;
-  const rawChapters = text.split(chapterRegex);
-
-  if (rawChapters.length <= 1) {
-    // No chapters found, treat as a single chapter
-    return [{ title: 'Chapter 1', text_content: text.trim() }];
+  // A simple split, assuming chapters are clearly delineated.
+  // This is a placeholder for a more robust chapter detection logic.
+  const parts = content.split(/\n\nChapter \d+/i).filter(p => p.trim() !== '');
+  
+  if (parts.length > 1) {
+    return parts.map(p => p.trim());
+  } else {
+    // If no chapters are found, treat the whole book as a single chapter.
+    return [text];
   }
-
-  // The split results in an array where titles and contents alternate
-  for (let i = 1; i < rawChapters.length; i += 2) {
-    const title = rawChapters[i].trim();
-    const content = (rawChapters[i + 1] || '').trim();
-    if (content) {
-      chapters.push({ title: title, text_content: content });
-    }
-  }
-
-  return chapters;
-};
-
-// Initialize Supabase client
-const supabaseUrl = Deno.env.get('SUPABASE_URL');
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  let supabaseClient: SupabaseClient;
   try {
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Supabase environment variables not set.');
+    const { text_content, file_name } = await req.json();
+
+    if (!text_content || !file_name) {
+      throw new Error('Missing text_content or file_name in request body');
     }
-    supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
-  } catch (e) {
-    console.error('Failed to initialize Supabase client:', e.message);
-    return new Response(JSON.stringify({ error: 'Failed to initialize Supabase client.' }), {
+
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+    );
+
+    // 1. Insert into the ebooks table
+    const { data: ebookData, error: ebookError } = await supabaseClient
+      .from('ebooks')
+      .insert({ file_name: file_name, title: file_name })
+      .select('id')
+      .single();
+
+    if (ebookError) throw ebookError;
+
+    const ebook_id = ebookData.id;
+
+    // 2. Split text into chapters
+    const chapters = splitIntoChapters(text_content);
+
+    // 3. Insert chapters into the chapters table
+    const chapterRecords = chapters.map((content, index) => ({
+      ebook_id: ebook_id,
+      chapter_number: index + 1,
+      text_content: content,
+      status: 'pending',
+    }));
+
+    const { error: chaptersError } = await supabaseClient
+      .from('chapters')
+      .insert(chapterRecords);
+
+    if (chaptersError) throw chaptersError;
+
+    return new Response(JSON.stringify({ success: true, ebook_id }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
   }
-
-  try {
-    let chaptersToInsert: { title: string; text_content: string }[] = [];
-    let fileName: string | undefined;
-    let fileContent: ArrayBuffer | undefined;
-    let fileType: 'txt' | 'epub' | 'pdf' | 'json' = 'json';
-    let fullTextForPreview = '';
-
-    const contentType = req.headers.get('Content-Type');
-
-    if (contentType?.includes('application/json')) {
-      const body = await req.json();
-      const inputText = body.inputText;
-      if (!inputText || typeof inputText !== 'string' || inputText.trim() === '') {
-        throw new Error('Invalid or empty inputText provided in JSON body.');
-      }
-      fileName = `pasted-text-${Date.now()}.txt`;
-      fileType = 'txt';
-      chaptersToInsert = splitTextIntoChapters(inputText);
-      fullTextForPreview = inputText;
-    } else if (contentType?.includes('multipart/form-data')) {
-      const formData = await req.formData();
-      const file = formData.get('file') as File | null;
-      if (!file) throw new Error('No file found in FormData.');
-
-      fileName = file.name;
-      fileContent = await file.arrayBuffer();
-
-      if (file.type === 'application/epub+zip' || fileName.endsWith('.epub')) {
-        fileType = 'epub';
-        const parsedEpub = await parseEpub(fileContent);
-        fullTextForPreview = parsedEpub.sections.map(s => stripHtml(s.html)).join(' ').substring(0, 1000);
-        chaptersToInsert = parsedEpub.sections.map(section => ({
-          title: section.id || 'Untitled Chapter',
-          text_content: stripHtml(section.html).trim(),
-        }));
-      } else if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
-        fileType = 'pdf';
-        const data = await pdf(fileContent);
-        fullTextForPreview = data.text;
-        chaptersToInsert = splitTextIntoChapters(data.text);
-      } else if (file.type === 'text/plain' || fileName.endsWith('.txt')) {
-        fileType = 'txt';
-        const textContent = await file.text();
-        fullTextForPreview = textContent;
-        chaptersToInsert = splitTextIntoChapters(textContent);
-      } else {
-        throw new Error('Unsupported file type. Please upload .txt, .epub, or .pdf files.');
-      }
-    } else {
-      throw new Error('Unsupported Content-Type.');
-    }
-
-    if (chaptersToInsert.length === 0) {
-      throw new Error('Could not extract any chapters from the document.');
-    }
-
-    const { data: ebookData, error: ebookError } = await supabaseClient
-      .from('ebooks')
-      .insert({
-        file_name: fileName,
-        original_file_type: fileType,
-        status: 'pending_tts_batch',
-        extracted_text_preview: fullTextForPreview.substring(0, 1000),
-      })
-      .select()
-      .single();
-
-    if (ebookError) throw ebookError;
-    if (!ebookData) throw new Error('Failed to create ebook record.');
-
-    const ebookId = ebookData.id;
-
-    if (fileContent) {
-      const { error: storageError } = await supabaseClient.storage
-        .from('ebook-uploads')
-        .upload(`ebooks/${ebookId}/original.${fileType}`, fileContent, { upsert: true });
-      if (storageError) {
-        console.warn(`Warning: Failed to store original file for ebook ${ebookId}: ${storageError.message}`);
-      }
-    }
-
-    const chapterRecords = chaptersToInsert.map((chapter, index) => ({
-      ebook_id: ebookId,
-      chapter_number: index + 1,
-      title: chapter.title,
-      text_content: chapter.text_content,
-      status: 'pending_tts', // Ensure status is explicitly set for the audio generation queue
-    }));
-
-    const { data: chaptersData, error: chaptersError } = await supabaseClient
-      .from('chapters')
-      .insert(chapterRecords)
-      .select();
-
-    if (chaptersError) throw chaptersError;
-    if (!chaptersData) throw new Error('Failed to create chapter records.');
-
-    return new Response(JSON.stringify({ 
-      message: 'Ebook uploaded and processed successfully.',
-      ebook: ebookData,
-      chapters: chaptersData 
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
-
-  } catch (error) {
-    console.error('Error processing request:', error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: error.message.includes('Invalid') || error.message.includes('Unsupported') ? 400 : 500,
-    });
-  }
 });
-
-/* 
-To deploy:
-1. Ensure you have the Supabase CLI installed and are logged in.
-2. Navigate to the root of your Supabase project in the terminal.
-3. Run: supabase functions deploy upload-ebook --project-ref YOUR_PROJECT_REF
-
-To serve locally (for testing):
-1. Navigate to the root of your Supabase project.
-2. Run: supabase functions serve --no-verify-jwt
-
-Then you can send requests to http://localhost:54321/functions/v1/upload-ebook
-*/
