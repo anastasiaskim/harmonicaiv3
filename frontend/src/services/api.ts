@@ -135,7 +135,7 @@ export const generateAudioBatch = async (ebookId: string, voiceId: string): Prom
     throw new Error('Voice ID cannot be empty.');
   }
 
-  const { data, error } = await supabase.functions.invoke('generate-audio-from-text', {
+  const { data, error } = await supabase.functions.invoke('generate-audio-batch', {
     body: { ebook_id: ebookId, voice_id: voiceId },
   });
 
