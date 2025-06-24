@@ -219,7 +219,7 @@ const HomePage: React.FC = () => {
           // Check if audio generation was already attempted (e.g., by a previous subscription instance for the same ebookId if component re-rendered)
           // This simple check might need refinement based on how `uploadResponse` is managed across re-renders or if `batchAudioResponse` state was kept.
           // For now, we assume if chapters are present and some are pending, we should try to generate.
-          const hasPendingChapters = chapters.some(ch => ch.status === 'pending_tts');
+          const hasPendingChapters = chapters.some(ch => ch.status === 'pending');
           if (currentEbookId && hasPendingChapters) { // Ensure ebookId is still current
             generateAudioBatch(currentEbookId, selectedVoiceId)
               .then(response => {
