@@ -1,24 +1,30 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock the '@supabase/supabase-js' library to prevent actual network calls.
+vi.mock('@supabase/supabase-js', () => {
+  const mockQuery = {
+    select: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue({ data: [{ id: 'mock-id' }], error: null }),
+  };
+  const from = vi.fn(() => mockQuery);
+  const createClient = vi.fn(() => ({
+    from,
+  }));
+  return { createClient };
+});
+
+// Import the supabase client *after* setting up the mock.
 import { supabase } from './supabaseClient';
 
 describe('Supabase Client', () => {
-
   it('should initialize the Supabase client without throwing an error', () => {
-    // This test implicitly checks if the environment variables are loaded.
-    // If VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY were missing,
-    // the client would have thrown an error on initialization.
     expect(supabase).toBeDefined();
-    expect(supabase).not.toBeNull();
   });
 
-  it('should be able to connect to the database and query a table', async () => {
-    // This test checks connectivity to the Supabase project and that the 'ebooks' table exists.
-    // We use .select() with a limit of 0 to check for table existence without fetching data.
-    const { error } = await supabase.from('ebooks').select('id').limit(0);
-
-    // The query should not return an error.
-    // An error would indicate a problem with the URL, anon key, or that the table does not exist.
+  it('should be able to query a table without making a real network request', async () => {
+    const { data, error } = await supabase.from('ebooks').select('id').limit(1);
     expect(error).toBeNull();
+    expect(data).toEqual([{ id: 'mock-id' }]);
   });
 
 });
