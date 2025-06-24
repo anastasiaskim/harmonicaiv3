@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     // 1. Insert into the ebooks table
     const { data: ebookData, error: ebookError } = await supabaseClient
       .from('ebooks')
-      .insert({ file_name: file_name, title: file_name })
+      .insert({ title: file_name })
       .select('id')
       .single();
 
