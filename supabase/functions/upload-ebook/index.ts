@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     console.log('Attempting to insert into ebooks table...');
     const { data: ebookData, error: ebookError } = await supabaseClient
       .from('ebooks')
-      .insert({ file_name: file_name, title: file_name })
+      .insert({ file_name: file_name, title: file_name, status: 'pending' })
       .select()
       .single();
 
@@ -83,6 +83,7 @@ Deno.serve(async (req) => {
     const chapterRecords = chapters.map((content, index) => ({
       ebook_id: ebook_id,
       chapter_number: index + 1,
+      title: `Chapter ${index + 1}`,
       text_content: content,
       status: 'pending',
     }));
