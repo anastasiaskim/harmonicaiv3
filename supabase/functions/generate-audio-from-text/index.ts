@@ -5,42 +5,53 @@ import { corsHeaders } from '../_shared/cors.ts';
 
 const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
 // NOTE: You can find your voice IDs here: https://elevenlabs.io/voice-library
-const VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Default: Rachel
+const DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Default: Rachel
 
 Deno.serve(async (req) => {
-  // This is needed if you're planning to invoke your function from a browser.
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let chapter_id;
+
   try {
-    const { chapter_id } = await req.json();
+    const body = await req.json();
+    chapter_id = body.chapter_id;
+    const voice_id = body.voice_id || DEFAULT_VOICE_ID;
 
     if (!chapter_id) {
       throw new Error('Missing chapter_id in request body');
     }
 
-    // Create a Supabase client with the user's authorization
+    // Create a Supabase client with the service role key to bypass RLS policies
+    // This is necessary for Edge Function-to-Function calls as auth context isn't preserved
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      // Use service role key instead of anon key to bypass RLS policies
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {}
     );
 
-    // 1. Fetch chapter content from the database
+    console.log(`Processing chapter ${chapter_id} with voice ${voice_id}`);
+
+    // Diagnostic log to check the user context
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    console.log(`Function is running as user: ${user?.id ?? 'not authenticated'}`);
+
+    // 1. Fetch chapter content
     const { data: chapterData, error: chapterError } = await supabaseClient
       .from('chapters')
       .select('text_content, ebook_id')
       .eq('id', chapter_id)
       .single();
 
-    if (chapterError) throw chapterError;
+    if (chapterError) throw new Error(`DB error fetching chapter: ${chapterError.message}`);
     if (!chapterData) throw new Error('Chapter not found');
 
     const { text_content, ebook_id } = chapterData;
 
-    // 2. Generate audio using ElevenLabs API
-    const elevenLabsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
+    // 2. Generate audio
+    const elevenLabsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -49,10 +60,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         text: text_content,
         model_id: 'eleven_monolingual_v1',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.5,
-        },
+        voice_settings: { stability: 0.5, similarity_boost: 0.5 },
       }),
     });
 
@@ -63,36 +71,47 @@ Deno.serve(async (req) => {
 
     const audioBlob = await elevenLabsResponse.blob();
 
-    // 3. Upload audio to Supabase Storage
+    // 3. Upload audio to Storage
     const storagePath = `ebooks/${ebook_id}/chapters/${chapter_id}.mp3`;
     const { error: uploadError } = await supabaseClient.storage
-      .from('audiobook_files')
-      .upload(storagePath, audioBlob, {
-        contentType: 'audio/mpeg',
-        upsert: true,
-      });
+      .from('audiobook-files')
+      .upload(storagePath, audioBlob, { contentType: 'audio/mpeg', upsert: true });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) throw new Error(`Storage upload error: ${uploadError.message}`);
 
-    // 4. Get public URL and update the chapters table
-    const { data: urlData } = supabaseClient.storage
-      .from('audiobook_files')
-      .getPublicUrl(storagePath);
-
+    // 4. Get public URL and update the database
+    const { data: urlData } = supabaseClient.storage.from('audiobook-files').getPublicUrl(storagePath);
     const audio_url = urlData.publicUrl;
 
     const { error: updateError } = await supabaseClient
       .from('chapters')
-      .update({ audio_url, status: 'completed' })
+      .update({ audio_url, status: 'complete' })
       .eq('id', chapter_id);
 
-    if (updateError) throw updateError;
+    if (updateError) throw new Error(`DB update error: ${updateError.message}`);
 
+    console.log(`Successfully processed chapter ${chapter_id}`);
     return new Response(JSON.stringify({ success: true, audio_url }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
+
   } catch (error) {
+    console.error(`Error processing chapter ${chapter_id}:`, error.message);
+
+    // Attempt to update the chapter status to 'error_tts' to stop polling
+    if (chapter_id) {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      );
+      await supabaseClient
+        .from('chapters')
+        .update({ status: 'error_tts', error_message: error.message })
+        .eq('id', chapter_id);
+    }
+
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,

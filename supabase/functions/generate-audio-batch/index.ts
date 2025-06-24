@@ -9,15 +9,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { ebook_id } = await req.json();
+    const { ebook_id, voice_id } = await req.json();
 
     if (!ebook_id) {
       throw new Error('Missing ebook_id in request body');
     }
 
+    // Create a Supabase client with the user's authorization
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      // Create client with Auth context of the user that called the function. This is important to allow RLS checks to succeed.
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
 
@@ -33,9 +35,13 @@ Deno.serve(async (req) => {
     }
 
     // Invoke the generate-audio-from-text function for each chapter
+    // Invoke the generate-audio-from-text function for each chapter, passing the user's auth header
     const invocations = chapters.map((chapter) =>
       supabaseClient.functions.invoke('generate-audio-from-text', {
-        body: { chapter_id: chapter.id },
+        body: { chapter_id: chapter.id, voice_id },
+        headers: {
+          Authorization: req.headers.get('Authorization')!,
+        },
       })
     );
 
