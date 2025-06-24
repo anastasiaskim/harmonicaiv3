@@ -19,8 +19,7 @@ jobs:
               deployment_status: { environment, target_url: url },
             } = context.payload;
 
-            const body = `Vercel deployment for **${environment}** failed. 
-[View Logs](${url})`;
+            const body = `Vercel deployment for **${environment}** failed. [View Logs](${url})`;
 
             github.rest.repos.createCommitComment({
               owner,
