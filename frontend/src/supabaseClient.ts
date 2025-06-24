@@ -1,11 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ymqniyhlhheafnpttgqq.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Enhanced error logging
-console.log('Initializing Supabase client with URL:', 
-  supabaseUrl ? supabaseUrl.substring(0, 8) + '...' : 'undefined');
+console.log('Initializing Supabase client...');
+if (import.meta.env.VITE_SUPABASE_URL) {
+  console.log('Found VITE_SUPABASE_URL in environment variables.');
+} else {
+  console.warn('VITE_SUPABASE_URL not found, using fallback URL.');
+}
 
 if (!supabaseUrl) {
   throw new Error("VITE_SUPABASE_URL is not defined. Please check your .env.local file.");
