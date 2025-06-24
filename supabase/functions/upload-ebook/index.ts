@@ -27,7 +27,9 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log('Function received a request.');
     const { text_content, file_name } = await req.json();
+    console.log(`Received file: ${file_name}`);
 
     if (!text_content || !file_name) {
       throw new Error('Missing text_content or file_name in request body');
@@ -38,20 +40,28 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
+    console.log('Supabase client created.');
 
     // 1. Insert into the ebooks table
+    console.log('Attempting to insert into ebooks table...');
     const { data: ebookData, error: ebookError } = await supabaseClient
       .from('ebooks')
       .insert({ file_name: file_name, title: file_name })
       .select('id')
       .single();
 
-    if (ebookError) throw ebookError;
+    if (ebookError) {
+      console.error('Error inserting into ebooks table:', ebookError);
+      throw ebookError;
+    }
+    console.log(`Successfully inserted ebook with ID: ${ebookData.id}`);
 
     const ebook_id = ebookData.id;
 
     // 2. Split text into chapters
+    console.log('Splitting text into chapters...');
     const chapters = splitIntoChapters(text_content);
+    console.log(`Found ${chapters.length} chapters.`);
 
     // 3. Insert chapters into the chapters table
     const chapterRecords = chapters.map((content, index) => ({
@@ -61,18 +71,28 @@ Deno.serve(async (req) => {
       status: 'pending',
     }));
 
+    console.log('Attempting to insert into chapters table...');
     const { error: chaptersError } = await supabaseClient
       .from('chapters')
       .insert(chapterRecords);
 
-    if (chaptersError) throw chaptersError;
+    if (chaptersError) {
+      console.error('Error inserting into chapters table:', chaptersError);
+      throw chaptersError;
+    }
+    console.log('Successfully inserted chapters.');
 
     return new Response(JSON.stringify({ success: true, ebook_id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('An error occurred in the upload-ebook function:', error);
+    return new Response(JSON.stringify({ 
+      error: 'An internal error occurred.',
+      message: error.message,
+      stack: error.stack,
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
