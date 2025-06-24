@@ -28,7 +28,23 @@ Deno.serve(async (req) => {
 
   try {
     console.log('Function received a request.');
-    const { text_content, file_name } = await req.json();
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Function is missing required environment variables: SUPABASE_URL or SUPABASE_ANON_KEY.');
+    }
+
+    // The frontend sends FormData, so we need to parse it like this.
+    const formData = await req.formData();
+    const file = formData.get('file') as File;
+
+    if (!file) {
+      throw new Error('File not found in form data. Make sure the key is "file".');
+    }
+
+    const text_content = await file.text();
+    const file_name = file.name;
     console.log(`Received file: ${file_name}`);
 
     if (!text_content || !file_name) {
