@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     const { data: ebookData, error: ebookError } = await supabaseClient
       .from('ebooks')
       .insert({ file_name: file_name, title: file_name })
-      .select('id')
+      .select()
       .single();
 
     if (ebookError) {
@@ -88,9 +88,10 @@ Deno.serve(async (req) => {
     }));
 
     console.log('Attempting to insert into chapters table...');
-    const { error: chaptersError } = await supabaseClient
+    const { data: insertedChapters, error: chaptersError } = await supabaseClient
       .from('chapters')
-      .insert(chapterRecords);
+      .insert(chapterRecords)
+      .select();
 
     if (chaptersError) {
       console.error('Error inserting into chapters table:', chaptersError);
@@ -98,10 +99,17 @@ Deno.serve(async (req) => {
     }
     console.log('Successfully inserted chapters.');
 
-    return new Response(JSON.stringify({ success: true, ebook_id }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({
+        message: 'Ebook uploaded successfully',
+        ebook: ebookData,
+        chapter: insertedChapters ? insertedChapters[0] : null, // Return the first chapter
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    );
   } catch (error) {
     console.error('An error occurred in the upload-ebook function:', error);
     return new Response(JSON.stringify({ 
