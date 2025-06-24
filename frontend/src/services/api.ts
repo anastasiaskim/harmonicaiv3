@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { getSupabaseConfig } from '../utils/configHelper';
 
 export interface UploadEbookResponse {
   message: string;
@@ -38,6 +39,12 @@ export const uploadEbookText = async (inputText: string): Promise<UploadEbookRes
 
   if (error) {
     console.error('Error invoking upload-ebook function:', error);
+    const { url, hasKey } = getSupabaseConfig();
+    console.error('Supabase client configuration:', {
+      url,
+      hasKey,
+      functionUrl: `${url}/functions/v1/upload-ebook`
+    });
     throw new Error(`Failed to upload ebook: ${error.message}`);
   }
 
@@ -62,6 +69,14 @@ export const uploadEbookFile = async (file: File): Promise<UploadEbookResponse> 
 
   if (error) {
     console.error('Error invoking upload-ebook function with file:', error);
+    const { url, hasKey } = getSupabaseConfig();
+    console.error('Request details:', {
+      url,
+      hasKey,
+      functionUrl: `${url}/functions/v1/upload-ebook`,
+      fileType: file.type,
+      fileSize: file.size
+    });
     throw new Error(`Failed to upload ebook file: ${error.message}`);
   }
 
