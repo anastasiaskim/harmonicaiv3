@@ -37,10 +37,10 @@ vi.mock('../supabaseClient', () => ({
   },
 }));
 
-const mockEbook = { id: 'ebook-123', title: 'Test Ebook', status: 'pending_tts', file_name: 'test.txt', original_file_type: 'txt', user_id: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+const mockEbook = { id: 'ebook-123', title: 'Test Ebook', status: 'pending', file_name: 'test.txt', original_file_type: 'txt', user_id: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
 const mockChapters = [
-  { id: 'ch-1', ebook_id: 'ebook-123', chapter_number: 1, title: 'Chapter 1', text_content: 'Text 1', status: 'pending_tts', audio_url: null, error_message: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'ch-2', ebook_id: 'ebook-123', chapter_number: 2, title: 'Chapter 2', text_content: 'Text 2', status: 'pending_tts', audio_url: null, error_message: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'ch-1', ebook_id: 'ebook-123', chapter_number: 1, title: 'Chapter 1', text_content: 'Text 1', status: 'pending', audio_url: null, error_message: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'ch-2', ebook_id: 'ebook-123', chapter_number: 2, title: 'Chapter 2', text_content: 'Text 2', status: 'pending', audio_url: null, error_message: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];
 
 // Define the placeholder text to match the DOM output (with \\n)
