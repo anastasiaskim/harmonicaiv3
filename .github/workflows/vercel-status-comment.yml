@@ -1,0 +1,30 @@
+name: Post Vercel comment
+
+on:
+  deployment_status:
+
+jobs:
+  comment:
+    if: github.event.deployment_status.state == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post Vercel comment
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const {
+              repo: { owner, repo },
+              sha,
+              deployment_status: { environment, target_url: url },
+            } = context.payload;
+
+            const body = `Vercel deployment for **${environment}** failed. 
+[View Logs](${url})`;
+
+            github.rest.repos.createCommitComment({
+              owner,
+              repo,
+              commit_sha: sha,
+              body,
+            });
