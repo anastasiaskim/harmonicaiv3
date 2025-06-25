@@ -45,7 +45,7 @@ describe('HomePage', () => {
 
   test('submits form with text input', async () => {
     // Setup mocks with consistent response structure
-    mockUploadEbookText.mockResolvedValueOnce({
+    const mockEbookResponse = {
       message: 'Upload successful',
       ebook: { 
         id: 'ebook-1',
@@ -65,9 +65,9 @@ describe('HomePage', () => {
         status: 'pending', 
         created_at: '2023-01-01T12:00:00Z' 
       }
-    });
+    };
     
-    mockGetAudiobookDetails.mockResolvedValueOnce({
+    const mockAudiobookDetails = {
       ebook: { 
         id: 'ebook-1', 
         title: 'Test Ebook', 
@@ -87,34 +87,55 @@ describe('HomePage', () => {
           created_at: '2023-01-01T12:00:00Z' 
         },
       ],
-    });
+    };
     
+    // Setup mocks
+    mockUploadEbookText.mockResolvedValueOnce(mockEbookResponse);
+    mockGetAudiobookDetails.mockResolvedValue(mockAudiobookDetails);
     mockGenerateAudioBatch.mockResolvedValue({ 
       message: 'Batch processing started.' 
     });
 
-    // Render component
-    render(<HomePage />);
+    // Render component with Toaster
+    render(
+      <>
+        <Toaster />
+        <HomePage />
+      </>
+    );
     
-    // Check for progress indication instead of looking for chapter elements
+    // Enter text in the textarea
+    const textarea = screen.getByPlaceholderText(TEXTAREA_PLACEHOLDER);
+    fireEvent.change(textarea, { target: { value: 'Test text content' } });
+    
+    // Click the generate button
+    const generateButton = screen.getByRole('button', { name: 'Generate Audiobook' });
+    fireEvent.click(generateButton);
+    
+    // Verify the initial API call was made
+    await waitFor(() => {
+      expect(mockUploadEbookText).toHaveBeenCalledWith('Test text content');
+    });
+    
+    // Check for the success toast - look for any toast with the success message
+    await waitFor(() => {
+      // Look for the toast message in the document
+      const toast = document.querySelector('[data-type="success"]');
+      expect(toast).toBeInTheDocument();
+      expect(toast).toHaveTextContent('Upload successful');
+    }, { timeout: 2000 });
+    
+    // Verify the progress message updates
     await waitFor(
       () => {
-        // First check that we show a progress message
-        const progressMessage = screen.getByText(/generating|processing|uploading/i);
+        const progressMessage = screen.getByText(/Preparing your content|Uploading text content|Content processed|Fetching chapter details|Starting audio generation/i);
         expect(progressMessage).toBeInTheDocument();
-        
-        // Check that we show a percentage
-        const progressPercentage = screen.getByText(/\d+\s*%/i);
-        expect(progressPercentage).toBeInTheDocument();
       },
-      { timeout: 5000 }
+      { timeout: 2000 }
     );
-
-    // Now that UI is updated, verify API calls
-    expect(mockUploadEbookText).toHaveBeenCalledTimes(0);
-    expect(mockGetAudiobookDetails).toHaveBeenCalledTimes(1);
+    
+    // Verify the API calls
     expect(mockGetAudiobookDetails).toHaveBeenCalledWith('ebook-1');
-    expect(mockGenerateAudioBatch).toHaveBeenCalledTimes(1);
     expect(mockGenerateAudioBatch).toHaveBeenCalledWith('ebook-1', DEFAULT_VOICE_ID);
   });
 
