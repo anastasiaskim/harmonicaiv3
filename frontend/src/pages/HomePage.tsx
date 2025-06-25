@@ -80,8 +80,8 @@ const HomePage: React.FC = () => {
       return;
     }
 
-    // Use a fresh state on each submission
-    resetState(); 
+    setChapters([]);
+    setCurrentEbookId(null);
     setIsLoading(true);
     setCurrentProgress(10);
     setProgressMessage('Preparing your content...');
