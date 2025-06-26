@@ -4,8 +4,18 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
 Deno.serve(async (req) => {
+  // Get the origin from the request headers
+  const origin = req.headers.get('Origin') || '';
+  
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { 
+      headers: {
+        ...corsHeaders(origin),
+        'Content-Type': 'text/plain',
+        'Content-Length': '2',
+      }
+    });
   }
 
   try {
@@ -48,12 +58,18 @@ Deno.serve(async (req) => {
     await Promise.all(invocations);
 
     return new Response(JSON.stringify({ success: true, message: `Triggered audio generation for ${chapters.length} chapters.` }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 
+        ...corsHeaders(origin),
+        'Content-Type': 'application/json' 
+      },
       status: 200,
     });
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 
+        ...corsHeaders(origin),
+        'Content-Type': 'application/json' 
+      },
       status: 500,
     });
   }
