@@ -6,9 +6,18 @@ import { corsHeaders } from '../_shared/cors.ts';
 console.log('`get-audiobook-details` function initializing...');
 
 serve(async (req: Request) => {
-  // This is needed if you're planning to invoke your function from a browser.
+  // Get the origin from the request headers
+  const origin = req.headers.get('Origin') || '';
+  
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { 
+      headers: {
+        ...corsHeaders(origin),
+        'Content-Type': 'text/plain',
+        'Content-Length': '2',
+      }
+    });
   }
 
   let supabaseClient: SupabaseClient;
@@ -24,7 +33,10 @@ serve(async (req: Request) => {
   } catch (e) {
     console.error('Failed to initialize Supabase client:', e.message);
     return new Response(JSON.stringify({ error: 'Failed to initialize Supabase client.' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 
+        ...corsHeaders(origin),
+        'Content-Type': 'application/json' 
+      },
       status: 500,
     });
   }
@@ -35,7 +47,10 @@ serve(async (req: Request) => {
 
     if (!ebookId) {
       return new Response(JSON.stringify({ error: 'Missing ebook_id query parameter' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders(origin),
+          'Content-Type': 'application/json' 
+        },
         status: 400,
       });
     }
@@ -54,7 +69,10 @@ serve(async (req: Request) => {
     }
     if (!ebookData) {
       return new Response(JSON.stringify({ error: 'Ebook not found' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders(origin),
+          'Content-Type': 'application/json' 
+        },
         status: 404,
       });
     }
@@ -74,7 +92,10 @@ serve(async (req: Request) => {
 
     console.log(`Successfully fetched details for ebook ${ebookId} with ${chaptersData?.length || 0} chapters.`);
     return new Response(JSON.stringify({ ebook: ebookData, chapters: chaptersData || [] }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 
+        ...corsHeaders(origin),
+        'Content-Type': 'application/json' 
+      },
       status: 200,
     });
 
@@ -83,12 +104,18 @@ serve(async (req: Request) => {
     // Check if the error is a PostgrestError for more specific status codes
     if (error.name === 'PostgrestError') {
         return new Response(JSON.stringify({ error: error.message, details: error.details }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: parseInt(error.code, 10) || 500, // Use Postgrest error code if available
+          headers: { 
+            ...corsHeaders(origin),
+            'Content-Type': 'application/json' 
+          },
+          status: parseInt(error.code, 10) || 500, // Use Postgrest error code if available
         });
     }
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 
+        ...corsHeaders(origin),
+        'Content-Type': 'application/json' 
+      },
       status: 500,
     });
   }
