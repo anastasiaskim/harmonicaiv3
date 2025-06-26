@@ -22,8 +22,18 @@ function splitIntoChapters(text: string): string[] {
 }
 
 Deno.serve(async (req) => {
+  // Get the origin from the request headers
+  const origin = req.headers.get('Origin') || '';
+  
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { 
+      headers: {
+        ...corsHeaders(origin),
+        'Content-Type': 'text/plain',
+        'Content-Length': '2',
+      }
+    });
   }
 
   try {
@@ -107,7 +117,10 @@ Deno.serve(async (req) => {
         chapter: insertedChapters ? insertedChapters[0] : null, // Return the first chapter
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders(origin),
+          'Content-Type': 'application/json' 
+        },
         status: 200,
       }
     );
@@ -118,7 +131,10 @@ Deno.serve(async (req) => {
       message: error.message,
       stack: error.stack,
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 
+        ...corsHeaders(origin),
+        'Content-Type': 'application/json' 
+      },
       status: 500,
     });
   }
