@@ -51,36 +51,37 @@ export const uploadEbookText = async (inputText: string): Promise<UploadEbookRes
   return data as UploadEbookResponse;
 };
 
-export const uploadEbookFile = async (file: File): Promise<UploadEbookResponse> => {
+export const uploadEbookFile = async (file: File, accessToken: string): Promise<UploadEbookResponse> => {
   if (!file) {
     throw new Error('File cannot be empty.');
   }
-
+  if (!accessToken) {
+    throw new Error('Authentication token is required');
+  }
 
   const formData = new FormData();
   formData.append('file', file);
 
-  const { data, error } = await supabase.functions.invoke('upload-ebook', {
-    body: formData,
-    // IMPORTANT: When sending FormData, Supabase client might automatically set Content-Type.
-    // If issues arise, you might need to manage headers explicitly or ensure the client handles it.
-    // For `invoke`, it should handle FormData correctly by default.
-  });
-
-  if (error) {
-    console.error('Error invoking upload-ebook function with file:', error);
-    const { url, hasKey } = getSupabaseConfig();
-    console.error('Request details:', {
-      url,
-      hasKey,
-      functionUrl: `${url}/functions/v1/upload-ebook`,
-      fileType: file.type,
-      fileSize: file.size
+  try {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-ebook`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: formData
     });
-    throw new Error(`Failed to upload ebook file: ${error.message}`);
-  }
 
-  return data as UploadEbookResponse;
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error: unknown) {
+    console.error('Error uploading file:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to upload ebook file: ${errorMessage}`);
+  }
 };
 
 export interface GenerateAudioResponse {

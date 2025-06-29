@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Toaster, toast } from 'sonner';
+import { supabase } from '../supabaseClient';
 
 const POLLING_INTERVAL = 5000; // 5 seconds
 
@@ -38,6 +39,51 @@ const HomePage: React.FC = () => {
 
   const [currentProgress, setCurrentProgress] = useState<number>(0);
   const [progressMessage, setProgressMessage] = useState<string>('Ready to generate your audiobook.');
+  const [authStatus, setAuthStatus] = useState<string>('checking...');
+
+  // Debug: Check auth status on component mount and when auth state changes
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        console.log('Checking authentication status...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          setAuthStatus('Error: ' + error.message);
+          return;
+        }
+        
+        console.log('Current session:', session);
+        if (session) {
+          setAuthStatus(`Authenticated as: ${session.user?.email || 'Unknown user'}`);
+          // Log token details
+          const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+          console.log('Token payload:', payload);
+          console.log('Token expires at:', new Date(payload.exp * 1000));
+        } else {
+          setAuthStatus('Not authenticated');
+        }
+      } catch (err) {
+        console.error('Error in auth check:', err);
+        setAuthStatus('Error checking auth');
+      }
+    };
+
+    // Check immediately
+    checkAuth();
+
+    // Set up auth state change listener
+    const { data: { subscription } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event, session);
+      checkAuth();
+    });
+
+    // Clean up
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   const resetState = () => {
     setText('');
@@ -79,6 +125,14 @@ const HomePage: React.FC = () => {
       toast.error('Please enter some text or upload a file.');
       return;
     }
+    
+    // Debug: Log current session before upload
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log('Session before upload:', session);
+    if (!session) {
+      toast.error('Not authenticated. Please sign in again.');
+      return;
+    }
 
     setChapters([]);
     setCurrentEbookId(null);
@@ -92,7 +146,8 @@ const HomePage: React.FC = () => {
       setCurrentProgress(25);
 
       if (selectedFile) {
-        response = await uploadEbookFile(selectedFile);
+        console.log('Uploading file with token:', session.access_token.substring(0, 20) + '...');
+        response = await uploadEbookFile(selectedFile, session.access_token);
       } else {
         response = await uploadEbookText(text);
       }
@@ -261,7 +316,12 @@ const HomePage: React.FC = () => {
             <div className="text-center text-sm text-gray-500">OR</div>
             <FileUpload onFileSelect={handleFileSelect} />
           </div>
-          <div className="space-y-2">
+          <div className="mb-6">
+            <div className="mb-4 p-2 bg-gray-100 rounded text-sm">
+              <div className="font-medium">Auth Status:</div>
+              <div className="text-gray-700">{authStatus}</div>
+            </div>
+            <h2 className="text-2xl font-bold mb-4">Create New Audiobook</h2>
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">{progressMessage}</span>
               <span className="text-sm font-bold">{Math.round(currentProgress)}%</span>
