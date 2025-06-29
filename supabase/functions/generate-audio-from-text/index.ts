@@ -23,13 +23,16 @@ Deno.serve(async (req) => {
       throw new Error('Missing chapter_id in request body');
     }
 
-    // Create a Supabase client with the service role key to bypass RLS policies
-    // This is necessary for Edge Function-to-Function calls as auth context isn't preserved
+    // Create a Supabase client with the user's auth context
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing Authorization header');
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      // Use service role key instead of anon key to bypass RLS policies
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {}
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
     );
 
     console.log(`Processing chapter ${chapter_id} with voice ${voice_id}`);
