@@ -72,9 +72,21 @@ describe('HomePage', () => {
 
   it('should handle text submission, generate audio, and poll for results', async () => {
     const mockUploadResponse: api.UploadEbookResponse = {
-      message: 'Content uploaded successfully!',
-      ebook: { id: 'ebook-123', status: 'processing', created_at: '', original_file_name: null, original_file_type: null, extracted_text_preview: null, user_id: 'user-123', title: 'test', author: 'test', cover_image_url: null },
-      chapter: { id: 'chapter-123', ebook_id: 'ebook-123', chapter_number: 1, title: 'intro', text_content: 'once upon a time', audio_url: null, audio_duration_seconds: null, status: 'pending', created_at: '' },
+      ebook_id: 'ebook-123',
+      chapters: [
+        {
+          id: 'chapter-123',
+          ebook_id: 'ebook-123',
+          chapter_number: 1,
+          part_number: 1,
+          title: 'intro',
+          text_content: 'once upon a time',
+          audio_url: null,
+          audio_duration_seconds: null,
+          status: 'pending',
+          created_at: '',
+        },
+      ],
     };
     const mockAudioDetailsProcessing: api.AudiobookDetailsResponse = {
       ebook: { id: 'ebook-123', status: 'processing', title: 'test', author: 'test', cover_image_url: null },
@@ -112,9 +124,21 @@ describe('HomePage', () => {
   it('should handle file upload and processing', async () => {
     const mockFile = new File(['file content'], 'test.epub', { type: 'application/epub+zip' });
     const mockUploadResponse: api.UploadEbookResponse = {
-      message: 'Content uploaded successfully!',
-      ebook: { id: 'ebook-456', status: 'processing', created_at: '', original_file_name: 'test.epub', original_file_type: 'application/epub+zip', extracted_text_preview: null, user_id: 'user-123', title: 'test', author: 'test', cover_image_url: null },
-      chapter: { id: 'chapter-456', ebook_id: 'ebook-456', chapter_number: 1, title: 'intro', text_content: 'once upon a time', audio_url: null, audio_duration_seconds: null, status: 'pending', created_at: '' },
+      ebook_id: 'ebook-456',
+      chapters: [
+        {
+          id: 'chapter-456',
+          ebook_id: 'ebook-456',
+          chapter_number: 1,
+          part_number: 1,
+          title: 'intro',
+          text_content: 'file content',
+          audio_url: null,
+          audio_duration_seconds: null,
+          status: 'pending',
+          created_at: '',
+        },
+      ],
     };
 
     vi.mocked(api.uploadEbookFile).mockResolvedValue(mockUploadResponse);
