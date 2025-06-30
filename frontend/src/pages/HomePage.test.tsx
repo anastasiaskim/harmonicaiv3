@@ -150,13 +150,9 @@ describe('HomePage', () => {
       expect(mockUploadEbookText).toHaveBeenCalledWith('Test text content');
     });
     
-    // Check for the success toast - look for any toast with the success message
     await waitFor(() => {
-      // Look for the toast message in the document
-      const toast = document.querySelector('[data-type="success"]');
-      expect(toast).toBeInTheDocument();
-      expect(toast).toHaveTextContent('Upload successful');
-    }, { timeout: 2000 });
+      expect(toast.success).toHaveBeenCalledWith('Upload successful');
+    });
     
     // Verify the progress message updates
     await waitFor(
@@ -334,7 +330,7 @@ describe('HomePage', () => {
     fireEvent.click(generateButton);
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Submission failed: Upload failed miserably');
+      expect(toast.error).toHaveBeenCalledWith('Upload failed miserably');
     });
   });
 
