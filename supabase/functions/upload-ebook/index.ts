@@ -97,7 +97,12 @@ export async function handleUpload(req: Request, { supabaseClient }: HandlerDepe
       console.log('[Info] Manually parsing EPUB file...');
       
       // Use zip.js to read the contents of the EPUB (which is a zip archive)
-      const zipReader = new zip.ZipReader(new zip.BlobReader(file));
+      // Convert the File object to a Blob that zip.js can reliably read.
+      // This is necessary because the File object from formData might not be directly
+      // readable as a binary blob in this environment.
+      const fileBuffer = await file.arrayBuffer();
+      const fileBlob = new Blob([fileBuffer]);
+      const zipReader = new zip.ZipReader(new zip.BlobReader(fileBlob));
       const entries = await zipReader.getEntries();
       
       if (!entries || entries.length === 0) {
