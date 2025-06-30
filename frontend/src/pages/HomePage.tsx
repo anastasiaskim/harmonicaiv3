@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Session } from '@supabase/supabase-js';
+import { Auth } from '@supabase/auth-ui-react';
+import { ThemeSupa } from '@supabase/auth-ui-shared';
 import TextInputArea from '../components/TextInputArea';
 import VoiceSelection from '../components/VoiceSelection';
 import FileUpload from '../components/FileUpload';
@@ -26,6 +29,7 @@ import { supabase } from '../supabaseClient';
 const POLLING_INTERVAL = 5000; // 5 seconds
 
 const HomePage: React.FC = () => {
+  const [session, setSession] = useState<Session | null>(null);
   const [text, setText] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('21m00Tcm4TlvDq8ikWAM'); // Default to Rachel
@@ -36,53 +40,21 @@ const HomePage: React.FC = () => {
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [playingChapterId, setPlayingChapterId] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState<boolean>(false);
-
   const [currentProgress, setCurrentProgress] = useState<number>(0);
   const [progressMessage, setProgressMessage] = useState<string>('Ready to generate your audiobook.');
-  const [authStatus, setAuthStatus] = useState<string>('checking...');
 
-  // Debug: Check auth status on component mount and when auth state changes
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        console.log('Checking authentication status...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          setAuthStatus('Error: ' + error.message);
-          return;
-        }
-        
-        console.log('Current session:', session);
-        if (session) {
-          setAuthStatus(`Authenticated as: ${session.user?.email || 'Unknown user'}`);
-          // Log token details
-          const payload = JSON.parse(atob(session.access_token.split('.')[1]));
-          console.log('Token payload:', payload);
-          console.log('Token expires at:', new Date(payload.exp * 1000));
-        } else {
-          setAuthStatus('Not authenticated');
-        }
-      } catch (err) {
-        console.error('Error in auth check:', err);
-        setAuthStatus('Error checking auth');
-      }
-    };
-
-    // Check immediately
-    checkAuth();
-
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event, session);
-      checkAuth();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
     });
 
-    // Clean up
-    return () => {
-      subscription?.unsubscribe();
-    };
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const resetState = () => {
@@ -126,9 +98,6 @@ const HomePage: React.FC = () => {
       return;
     }
     
-    // Debug: Log current session before upload
-    const { data: { session } } = await supabase.auth.getSession();
-    console.log('Session before upload:', session);
     if (!session) {
       toast.error('Not authenticated. Please sign in again.');
       return;
@@ -146,7 +115,6 @@ const HomePage: React.FC = () => {
       setCurrentProgress(25);
 
       if (selectedFile) {
-        console.log('Uploading file with token:', session.access_token.substring(0, 20) + '...');
         response = await uploadEbookFile(selectedFile, session.access_token);
       } else {
         response = await uploadEbookText(text);
@@ -241,7 +209,6 @@ const HomePage: React.FC = () => {
     return () => clearInterval(poll);
   }, [isPolling, currentEbookId]);
 
-  // Cleanup audio on component unmount
   useEffect(() => {
     return () => {
       if (currentAudio) {
@@ -268,7 +235,7 @@ const HomePage: React.FC = () => {
       newAudio.play().catch(e => {
         console.error('Error playing audio:', e);
         toast.error('Could not play audio.');
-        setPlayingChapterId(null); // Reset on error
+        setPlayingChapterId(null);
       });
       newAudio.onended = () => setPlayingChapterId(null);
     }
@@ -299,58 +266,74 @@ const HomePage: React.FC = () => {
     }
   };
 
-  return (
-    <div className="container mx-auto p-4 md:p-8">
-      <Toaster richColors position="top-right" />
-      <Card className="w-full max-w-3xl mx-auto">
-        <CardHeader>
-          <CardTitle className="text-3xl font-bold">Harmonic AI</CardTitle>
-          <CardDescription>
-            Transform your text or e-books into high-quality audiobooks with your chosen voice.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            <VoiceSelection selectedVoiceId={selectedVoiceId} onVoiceChange={setSelectedVoiceId} />
-            <TextInputArea text={text} onTextChange={handleTextChange} />
-            <div className="text-center text-sm text-gray-500">OR</div>
-            <FileUpload onFileSelect={handleFileSelect} />
-          </div>
-          <div className="mb-6">
-            <div className="mb-4 p-2 bg-gray-100 rounded text-sm">
-              <div className="font-medium">Auth Status:</div>
-              <div className="text-gray-700">{authStatus}</div>
-            </div>
-            <h2 className="text-2xl font-bold mb-4">Create New Audiobook</h2>
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-gray-600">{progressMessage}</span>
-              <span className="text-sm font-bold">{Math.round(currentProgress)}%</span>
-            </div>
-            <Progress value={currentProgress} className="w-full" />
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={resetState} disabled={isLoading}>
-            Start Over
-          </Button>
-          <Button onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? 'Processing...' : 'Generate Audiobook'}
-          </Button>
-        </CardFooter>
-      </Card>
-
-      {chapters.length > 0 && (
-        <div className="mt-8">
-          <ChapterList
-            chapters={chapters}
-            onPlayChapter={handlePlayChapter}
-            onDownloadChapter={handleDownloadChapter}
-            currentPlayingChapterId={playingChapterId}
+  if (!session) {
+    return (
+      <div className="container mx-auto p-4 md:p-8 flex justify-center items-center h-screen">
+        <div className="w-full max-w-md">
+          <Auth
+            supabaseClient={supabase}
+            appearance={{ theme: ThemeSupa }}
+            providers={['google', 'github']}
+            theme="dark"
           />
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  } else {
+    return (
+      <div className="container mx-auto p-4 md:p-8">
+        <Toaster richColors position="top-right" />
+        <Card className="w-full max-w-3xl mx-auto">
+          <CardHeader>
+            <CardTitle className="text-3xl font-bold">Harmonic AI</CardTitle>
+            <CardDescription>
+              Welcome, {session.user.email}! Transform your text or e-books into high-quality audiobooks.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <VoiceSelection selectedVoiceId={selectedVoiceId} onVoiceChange={setSelectedVoiceId} />
+              <TextInputArea text={text} onTextChange={handleTextChange} />
+              <div className="text-center text-sm text-gray-500">OR</div>
+              <FileUpload onFileSelect={handleFileSelect} />
+            </div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold mb-4">Create New Audiobook</h2>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-600">{progressMessage}</span>
+                <span className="text-sm font-bold">{Math.round(currentProgress)}%</span>
+              </div>
+              <Progress value={currentProgress} className="w-full" />
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <div>
+              <Button variant="outline" onClick={resetState} disabled={isLoading} className="mr-2">
+                Start Over
+              </Button>
+              <Button variant="outline" onClick={() => supabase.auth.signOut()}>
+                Sign Out
+              </Button>
+            </div>
+            <Button onClick={handleSubmit} disabled={isLoading}>
+              {isLoading ? 'Processing...' : 'Generate Audiobook'}
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {chapters.length > 0 && (
+          <div className="mt-8">
+            <ChapterList
+              chapters={chapters}
+              onPlayChapter={handlePlayChapter}
+              onDownloadChapter={handleDownloadChapter}
+              currentPlayingChapterId={playingChapterId}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
 };
 
 export default HomePage;
