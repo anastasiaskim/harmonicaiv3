@@ -1,25 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ymqniyhlhheafnpttgqq.supabase.co';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Enhanced error logging
-console.log('Initializing Supabase client...');
-if (import.meta.env.VITE_SUPABASE_URL) {
-  console.log('Found VITE_SUPABASE_URL in environment variables.');
-} else {
-  console.warn('VITE_SUPABASE_URL not found, using fallback URL.');
-}
-
+// This is a critical check. If the environment variables are missing,
+// the application should not attempt to run. This prevents it from
+// running in a misconfigured state, which can lead to hard-to-debug errors.
 if (!supabaseUrl) {
-  throw new Error("VITE_SUPABASE_URL is not defined. Please check your .env.local file.");
+  throw new Error('VITE_SUPABASE_URL is not defined. Please check your environment variables.');
 }
 
 if (!supabaseAnonKey) {
-  throw new Error("VITE_SUPABASE_ANON_KEY is not defined. Please check your .env.local file.");
+  throw new Error('VITE_SUPABASE_ANON_KEY is not defined. Please check your environment variables.');
 }
 
-// Create Supabase client with additional options for debugging
+// Create and export the Supabase client.
+// The auth options are the defaults but are stated here for clarity.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
