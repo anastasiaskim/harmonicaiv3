@@ -6,6 +6,9 @@ import * as zip from 'npm:@zip.js/zip.js';
 import { Buffer } from "https://deno.land/std@0.140.0/node/buffer.ts";
 import { parse } from "https://deno.land/x/xml@2.1.3/mod.ts";
 
+// Add debug logging
+console.log('Upload-ebook function starting...');
+
 // Type definitions
 interface HandlerDependencies {
   supabaseClient: SupabaseClient;
@@ -62,7 +65,19 @@ export async function handleUpload(req: Request, { supabaseClient }: HandlerDepe
     }
 
     const file_name = file.name;
-    console.log(`Received file: ${file_name}`);
+    console.log('File received from form data:', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified,
+      // @ts-ignore - webkitRelativePath might not exist in all environments
+      webkitRelativePath: file.webkitRelativePath,
+    });
+
+    // Validate file type
+    if (!file_name.toLowerCase().endsWith('.epub')) {
+      throw new Error('Invalid file type. Please upload an EPUB file.');
+    }
 
     // Get user from JWT to satisfy RLS
     const authHeader = req.headers.get('Authorization');
@@ -92,25 +107,54 @@ export async function handleUpload(req: Request, { supabaseClient }: HandlerDepe
     console.log(`Successfully inserted ebook with ID: ${ebookData.id}`);
     ebook_id = ebookData.id;
 
+    // Declare zipReader at function scope so it's accessible in catch/finally
+    let zipReader: any = null;
     try {
       // 2. Manually parse the EPUB file
       console.log('[Info] Manually parsing EPUB file...');
       
-      // Use zip.js to read the contents of the EPUB (which is a zip archive)
-      // Convert the File object to a Blob that zip.js can reliably read.
-      // This is necessary because the File object from formData might not be directly
-      // readable as a binary blob in this environment.
+      console.log('Processing file as EPUB...');
+      console.log('File size:', file.size, 'bytes');
+      
+      // Convert the file to an ArrayBuffer first
       const fileBuffer = await file.arrayBuffer();
-      const fileBlob = new Blob([fileBuffer]);
-      const zipReader = new zip.ZipReader(new zip.BlobReader(fileBlob));
+      console.log('File buffer created, size:', fileBuffer.byteLength, 'bytes');
+      
+      if (fileBuffer.byteLength === 0) {
+        throw new Error('Uploaded file is empty');
+      }
+
+      // Create a Blob with explicit MIME type
+      const fileBlob = new Blob([fileBuffer], { type: 'application/epub+zip' });
+      console.log('Blob created, size:', fileBlob.size, 'bytes');
+
+      // Create a new BlobReader with the correct MIME type
+      const blobReader = new zip.BlobReader(fileBlob);
+      console.log('BlobReader created, starting to read zip entries...');
+
+      // Create zip reader with the blob reader
+      zipReader = new zip.ZipReader(blobReader);
+      
+      // Get all entries
+      console.log('Getting zip entries...');
       const entries = await zipReader.getEntries();
+      console.log(`Found ${entries.length} entries in the EPUB`);
       
       if (!entries || entries.length === 0) {
         const errorMessage = "EPUB file is empty or corrupted (no entries found in zip).";
-        await supabaseClient.from('ebooks').update({
-          status: 'error',
-          processing_log: supabaseClient.from('ebooks').select('processing_log').then(res => `${res.data?.[0]?.processing_log || ''}\nError: ${errorMessage}`)
-        }).eq('id', ebook_id);
+        console.error(errorMessage);
+        
+        if (ebook_id) {
+          await supabaseClient
+            .from('ebooks')
+            .update({ 
+              status: 'error', 
+              status_message: errorMessage,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', ebook_id);
+        }
+        
         throw new Error(errorMessage);
       }
 
@@ -216,14 +260,43 @@ export async function handleUpload(req: Request, { supabaseClient }: HandlerDepe
       });
     } catch (processingError: unknown) {
       console.error('An error occurred during EPUB processing:', processingError);
+      
+      // Close zip reader if it exists
+      if (zipReader) {
+        try {
+          await zipReader.close();
+          console.log('Zip reader closed after error');
+        } catch (closeError) {
+          console.error('Error closing zip reader:', closeError);
+        }
+      }
+      
       if (ebook_id) {
         const errorMessage = processingError instanceof Error ? processingError.message : 'An unknown error occurred during processing.';
+        console.error('Updating ebook status to failed with message:', errorMessage);
+        
         await supabaseClient
           .from('ebooks')
-          .update({ status: 'failed', status_message: errorMessage })
+          .update({ 
+            status: 'failed', 
+            status_message: errorMessage,
+            updated_at: new Date().toISOString()
+          })
           .eq('id', ebook_id);
       }
+      
+      // Re-throw the error to be caught by the outer catch
       throw processingError;
+    } finally {
+      // Ensure zip reader is always closed
+      if (zipReader) {
+        try {
+          await zipReader.close();
+          console.log('Zip reader closed successfully');
+        } catch (closeError) {
+          console.error('Error closing zip reader in finally block:', closeError);
+        }
+      }
     }
   } catch (error: unknown) {
     console.error('An error occurred in the upload-ebook function:', error);
