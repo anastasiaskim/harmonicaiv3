@@ -5,7 +5,7 @@ import React from 'react';
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import HomePage from './HomePage';
 import * as api from '../services/api';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 
 // Mock the supabase client to simulate an authenticated user
 vi.mock('../supabaseClient', () => ({
@@ -29,6 +29,15 @@ vi.mock('../supabaseClient', () => ({
       }),
     },
   },
+}));
+
+// Mock the sonner toast library
+vi.mock('sonner', () => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
+  Toaster: () => <div data-testid="toaster-mock" /> // Mock Toaster component
 }));
 
 const TEXTAREA_PLACEHOLDER = 'Paste your text here to convert it into an audiobook...';
@@ -324,9 +333,9 @@ describe('HomePage', () => {
     const generateButton = screen.getByRole('button', { name: 'Generate Audiobook' });
     fireEvent.click(generateButton);
 
-    const errorToast = await screen.findByRole('alert');
-    expect(errorToast).toBeInTheDocument();
-    expect(errorToast).toHaveTextContent(/Submission failed:.*Upload failed miserably/i);
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Submission failed: Upload failed miserably');
+    });
   });
 
   // Test that UI shows completion status when all chapters are complete
