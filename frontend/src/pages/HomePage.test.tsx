@@ -7,6 +7,30 @@ import HomePage from './HomePage';
 import * as api from '../services/api';
 import { Toaster } from 'sonner';
 
+// Mock the supabase client to simulate an authenticated user
+vi.mock('../supabaseClient', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: {
+          session: {
+            access_token: 'mock-access-token',
+            user: { id: 'user-id', email: 'test@example.com' },
+          },
+        },
+        error: null,
+      }),
+      onAuthStateChange: vi.fn().mockReturnValue({
+        data: {
+          subscription: {
+            unsubscribe: vi.fn(),
+          },
+        },
+      }),
+    },
+  },
+}));
+
 const TEXTAREA_PLACEHOLDER = 'Paste your text here to convert it into an audiobook...';
 const DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Rachel (Narrative)
 
@@ -251,7 +275,7 @@ describe('HomePage', () => {
     
     // First check that the upload API was called
     await waitFor(
-      () => expect(uploadEbookFileMock).toHaveBeenCalled(),
+      () => expect(uploadEbookFileMock).toHaveBeenCalledWith(file, 'mock-access-token'),
       { timeout: 5000 }
     );
     
@@ -304,7 +328,7 @@ describe('HomePage', () => {
     fireEvent.click(generateButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Upload failed miserably')).toBeInTheDocument();
+      expect(screen.getByText(/Submission failed:.*Upload failed miserably/i)).toBeInTheDocument();
     }, { timeout: 5000 });
   });
 
