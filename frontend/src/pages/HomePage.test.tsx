@@ -325,7 +325,9 @@ describe('HomePage', () => {
     fireEvent.click(generateButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Submission failed:.*Upload failed miserably/i)).toBeInTheDocument();
+      const errorToast = document.querySelector('[data-type="error"]');
+      expect(errorToast).toBeInTheDocument();
+      expect(errorToast).toHaveTextContent(/Submission failed:.*Upload failed miserably/i);
     }, { timeout: 5000 });
   });
 
