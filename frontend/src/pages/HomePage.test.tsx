@@ -324,11 +324,9 @@ describe('HomePage', () => {
     const generateButton = screen.getByRole('button', { name: 'Generate Audiobook' });
     fireEvent.click(generateButton);
 
-    await waitFor(() => {
-      const errorToast = document.querySelector('[data-type="error"]');
-      expect(errorToast).toBeInTheDocument();
-      expect(errorToast).toHaveTextContent(/Submission failed:.*Upload failed miserably/i);
-    }, { timeout: 5000 });
+    const errorToast = await screen.findByRole('alert');
+    expect(errorToast).toBeInTheDocument();
+    expect(errorToast).toHaveTextContent(/Submission failed:.*Upload failed miserably/i);
   });
 
   // Test that UI shows completion status when all chapters are complete
