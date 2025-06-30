@@ -1,31 +1,24 @@
 import { supabase } from '../supabaseClient';
 import { getSupabaseConfig } from '../utils/configHelper';
 
+// Represents a single chapter returned by the upload-ebook function
+export interface Chapter {
+  id: string;
+  ebook_id: string;
+  chapter_number: number;
+  part_number: number;
+  title: string | null;
+  text_content: string;
+  audio_url: string | null;
+  audio_duration_seconds: number | null;
+  status: string;
+  created_at: string;
+}
+
+// Represents the successful response from the upload-ebook function
 export interface UploadEbookResponse {
-  message: string;
-  ebook: {
-    id: string;
-    created_at: string;
-    original_file_name: string | null;
-    original_file_type: string | null;
-    status: string | null;
-    extracted_text_preview: string | null;
-    user_id: string | null;
-    title: string | null;
-    author: string | null;
-    cover_image_url: string | null;
-  };
-  chapter: {
-    id: string;
-    ebook_id: string;
-    chapter_number: number;
-    title: string | null;
-    text_content: string;
-    audio_url: string | null;
-    audio_duration_seconds: number | null;
-    status: string;
-    created_at: string;
-  };
+  ebook_id: string;
+  chapters: Chapter[];
 }
 
 export const uploadEbookText = async (inputText: string): Promise<UploadEbookResponse> => {

@@ -12,6 +12,7 @@ import {
   UploadEbookResponse,
   generateAudioBatch,
   getAudiobookDetails,
+  AudiobookDetailsResponse,
 } from '../services/api';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,7 +35,6 @@ const HomePage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('21m00Tcm4TlvDq8ikWAM'); // Default to Rachel
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [uploadResponse, setUploadResponse] = useState<UploadEbookResponse | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [currentEbookId, setCurrentEbookId] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
@@ -42,6 +42,7 @@ const HomePage: React.FC = () => {
   const [isPolling, setIsPolling] = useState<boolean>(false);
   const [currentProgress, setCurrentProgress] = useState<number>(0);
   const [progressMessage, setProgressMessage] = useState<string>('Ready to generate your audiobook.');
+  const [ebookDetails, setEbookDetails] = useState<AudiobookDetailsResponse['ebook'] | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -61,9 +62,9 @@ const HomePage: React.FC = () => {
     setText('');
     setSelectedFile(null);
     setIsLoading(false);
-    setUploadResponse(null);
     setChapters([]);
     setCurrentEbookId(null);
+    setEbookDetails(null);
     if (currentAudio) {
       currentAudio.pause();
     }
@@ -86,7 +87,6 @@ const HomePage: React.FC = () => {
     setSelectedFile(file);
     setText('');
     setChapters([]);
-    setUploadResponse(null);
     setCurrentProgress(0);
     setProgressMessage(`File "${file.name}" selected. Ready to generate.`);
     toast.success(`File selected: ${file.name}`);
@@ -120,13 +120,12 @@ const HomePage: React.FC = () => {
         response = await uploadEbookText(text);
       }
 
-      setUploadResponse(response);
-      toast.success(response.message || 'Content uploaded successfully!');
+      toast.success('Content uploaded successfully!');
       setProgressMessage('Content processed, fetching chapters...');
       setCurrentProgress(50);
 
-      if (response.ebook?.id) {
-        const ebookId = response.ebook.id;
+      if (response.ebook_id) {
+        const ebookId = response.ebook_id;
         setCurrentEbookId(ebookId);
         await fetchAndDisplayChapters(ebookId, true);
       } else {
@@ -145,6 +144,7 @@ const HomePage: React.FC = () => {
     try {
       setProgressMessage('Fetching chapter details...');
       const detailsResponse = await getAudiobookDetails(ebookId);
+      setEbookDetails(detailsResponse.ebook);
 
       if (detailsResponse?.chapters?.length > 0) {
         setChapters(detailsResponse.chapters);
@@ -252,7 +252,7 @@ const HomePage: React.FC = () => {
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      const safeTitle = uploadResponse?.ebook?.title?.replace(/[^a-z0-9]/gi, '_') || 'ebook';
+      const safeTitle = ebookDetails?.title?.replace(/[^a-z0-9]/gi, '_') || 'ebook';
       const fileName = `${safeTitle}_chapter_${chapter.chapter_number}.mp3`;
       link.download = fileName;
       document.body.appendChild(link);
