@@ -300,10 +300,24 @@ export async function handleUpload(req: Request, { supabaseClient }: HandlerDepe
     }
   } catch (error: unknown) {
     console.error('An error occurred in the upload-ebook function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown internal error occurred.';
+    
+    let errorMessage: string;
     const errorStack = error instanceof Error ? error.stack : undefined;
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else if (error && typeof error === 'object' && 'message' in error && typeof (error as any).message === 'string') {
+      errorMessage = (error as { message: string }).message;
+    } else {
+      errorMessage = 'An unknown internal error occurred.';
+    }
+
+    // The frontend expects the specific error message in the 'error' property.
+    // This change puts the specific message in the 'error' property for clearer feedback.
     return new Response(
-      JSON.stringify({ error: 'An internal error occurred.', message: errorMessage, stack: errorStack }),
+      JSON.stringify({ error: errorMessage, stack: errorStack }),
       { headers: { ...headers, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

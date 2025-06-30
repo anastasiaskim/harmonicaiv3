@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "lib": ["deno.window"]
+  },
+  "lint": {
+    "files": {
+      "include": ["supabase/functions/"],
+      "exclude": ["supabase/functions/common/test.ts"]
+    }
+  },
+  "fmt": {
+    "files": {
+      "include": ["supabase/functions/"],
+      "exclude": ["supabase/functions/common/test.ts"]
+    },
+    "options": {
+      "useTabs": false,
+      "lineWidth": 120,
+      "indentWidth": 2,
+      "singleQuote": true
+    }
+  },
+  "tasks": {
+    "start": "deno run --allow-net --allow-env supabase/functions/index.ts",
+    "test": "deno test --allow-net --allow-env supabase/functions/common/test.ts"
+  },
+  "importMap": "./supabase/functions/import_map.json"
+}
