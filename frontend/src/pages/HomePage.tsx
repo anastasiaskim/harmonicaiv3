@@ -10,7 +10,7 @@ import {
   uploadEbookText,
   uploadEbookFile,
   UploadEbookResponse,
-  generateAudioBatch,
+  startAudioGeneration,
   getAudiobookDetails,
   AudiobookDetailsResponse,
 } from '../services/api';
@@ -153,7 +153,8 @@ const HomePage: React.FC = () => {
         if (shouldGenerateAudio && hasPending) {
           setProgressMessage('Starting audio generation...');
           setCurrentProgress(70);
-          await generateAudioBatch(ebookId, selectedVoiceId);
+          const response = await startAudioGeneration(ebookId, selectedVoiceId);
+          toast.info(response.message); // Inform the user that the process has started
           setIsPolling(true); // Start polling
         } else if (!hasPending) {
           setProgressMessage('All chapters already processed.');

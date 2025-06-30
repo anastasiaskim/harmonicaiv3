@@ -107,21 +107,20 @@ export const generateAudioFromChapter = async (chapterId: string, voiceId: strin
   return data as GenerateAudioResponse;
 };
 
-export interface BatchChapterResult {
-  chapter_id: string;
-  status: 'success' | 'failed';
-  audio_url?: string;
-  error?: string;
-}
-
-export interface GenerateAudioBatchResponse {
+// Represents the response from the asynchronous audio generation trigger
+export interface StartAudioGenerationResponse {
   message: string;
-  successful_count: number;
-  failed_count: number;
-  results: BatchChapterResult[];
 }
 
-export const generateAudioBatch = async (ebookId: string, voiceId: string): Promise<GenerateAudioBatchResponse> => {
+/**
+ * Triggers the asynchronous generation of audio for all pending chapters of an ebook.
+ * This function returns immediately with a 202 Accepted status.
+ * The actual audio generation happens in the background.
+ * @param ebookId The ID of the ebook.
+ * @param voiceId The ID of the voice to use for generation.
+ * @returns A promise that resolves with a confirmation message.
+ */
+export const startAudioGeneration = async (ebookId: string, voiceId: string): Promise<StartAudioGenerationResponse> => {
   if (!ebookId) {
     throw new Error('Ebook ID cannot be empty.');
   }
@@ -129,16 +128,16 @@ export const generateAudioBatch = async (ebookId: string, voiceId: string): Prom
     throw new Error('Voice ID cannot be empty.');
   }
 
-  const { data, error } = await supabase.functions.invoke('generate-audio-batch', {
+  const { data, error } = await supabase.functions.invoke('start-audio-generation', {
     body: { ebook_id: ebookId, voice_id: voiceId },
   });
 
   if (error) {
-    console.error('Error invoking generate-audio-batch function:', error);
-    throw new Error(`Failed to generate audio batch: ${error.message}`);
+    console.error('Error invoking start-audio-generation function:', error);
+    throw new Error(`Failed to start audio generation: ${error.message}`);
   }
 
-  return data as GenerateAudioBatchResponse;
+  return data as StartAudioGenerationResponse;
 };
 
 // Interface for the structure of a single chapter, matching ChapterList.tsx
