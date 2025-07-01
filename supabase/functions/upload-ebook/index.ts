@@ -3,7 +3,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { corsHeaders } from 'shared/cors.ts';
 import * as zip from '@zip.js/zip.js';
-import { parse } from 'xml';
+import { parse } from 'xml/mod.ts';
 
 // Add debug logging
 console.log('Upload-ebook function starting...');
