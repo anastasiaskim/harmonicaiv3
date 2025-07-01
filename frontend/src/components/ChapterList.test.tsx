@@ -1,22 +1,9 @@
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import ChapterList, { Chapter } from './ChapterList';
 
-// Mock lucide-react icons
-vi.mock('lucide-react', async () => {
-  const original = await vi.importActual('lucide-react');
-  return {
-    ...original,
-    Play: () => <svg data-testid="play-icon" />,
-    Pause: () => <svg data-testid="pause-icon" />,
-    Download: () => <svg data-testid="download-icon" />,
-    Loader2: () => <svg data-testid="loader-icon" />,
-    CircleCheck: () => <svg data-testid="check-icon" />,
-    CircleAlert: () => <svg data-testid="alert-icon" />,
-    Hourglass: () => <svg data-testid="hourglass-icon" />,
-  };
-});
+
 
 const mockChapters: Chapter[] = [
   {
@@ -52,7 +39,22 @@ const mockChapters: Chapter[] = [
 const mockOnPlayChapter = vi.fn();
 const mockOnDownloadChapter = vi.fn();
 
+// Mock lucide-react with a simple, synchronous factory to prevent environment pollution
+vi.mock('lucide-react', () => ({
+  Play: () => <svg data-testid="play-icon" />,
+  Pause: () => <svg data-testid="pause-icon" />,
+  Download: () => <svg data-testid="download-icon" />,
+  Loader2: () => <svg data-testid="loader-icon" />,
+  CircleCheck: () => <svg data-testid="check-icon" />,
+  CircleAlert: () => <svg data-testid="alert-icon" />,
+  Hourglass: () => <svg data-testid="hourglass-icon" />,
+}));
+
 describe('ChapterList with Shadcn UI', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

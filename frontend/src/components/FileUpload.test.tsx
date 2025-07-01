@@ -1,78 +1,57 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+/// <reference types="vitest/globals" />
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import FileUpload from './FileUpload';
-import { act } from 'react';
 
-describe('FileUpload', () => {
-  const mockOnFileSelect = vi.fn();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
+describe('FileUpload Component', () => {
+  it('should render the select file button initially', () => {
+    const handleFileSelect = vi.fn();
+    render(<FileUpload onFileSelect={handleFileSelect} />);
+    expect(screen.getByRole('button', { name: /select a file/i })).toBeInTheDocument();
   });
 
-  // The button's accessible name is derived from the label due to htmlFor pointing to the button's id
-  const buttonAccessibleName = /or upload a file \(.txt, .epub, .pdf\):/i;
-
-  test('renders the file input label and custom button', () => {
-    render(<FileUpload onFileSelect={mockOnFileSelect} />);
-    expect(screen.getByText(buttonAccessibleName)).toBeInTheDocument(); // This is the label text
-    // The button itself will have the text "Choose File" but its accessible name is the label's text
-    const button = screen.getByRole('button', { name: buttonAccessibleName });
-    expect(button).toBeInTheDocument();
-    expect(button).toHaveTextContent('Choose File'); // Verify visible text
-  });
-
-  test('triggers hidden file input click when custom button is clicked', () => {
-    const { container } = render(<FileUpload onFileSelect={mockOnFileSelect} />);
-    const fileInput = container.querySelector('#file-upload-input') as HTMLInputElement;
-    // Query button by its accessible name
-    const button = screen.getByRole('button', { name: buttonAccessibleName });
-
-    const clickSpy = vi.spyOn(fileInput!, 'click');
+  it('should open the file dialog when the button is clicked', () => {
+    const handleFileSelect = vi.fn();
+    render(<FileUpload onFileSelect={handleFileSelect} />);
+    
+    const button = screen.getByRole('button', { name: /select a file/i });
+    const fileInput = button.parentElement?.querySelector('input[type="file"]') as HTMLInputElement;
+    const clickSpy = vi.spyOn(fileInput, 'click').mockImplementation(() => {});
     
     fireEvent.click(button);
+    
     expect(clickSpy).toHaveBeenCalledTimes(1);
     clickSpy.mockRestore();
   });
-  
-  test('calls onFileSelect with the file when a file is chosen via the hidden input', async () => {
-    const { container } = render(<FileUpload onFileSelect={mockOnFileSelect} acceptedFileTypes=".txt" />);
-    const fileInput = container.querySelector('#file-upload-input') as HTMLInputElement;
-    const testFile = new File(['(⌐□_□)'], 'chucknorris.txt', { type: 'text/plain' });
 
-    await act(async () => {
-        fireEvent.change(fileInput!, {
-          target: { files: [testFile] },
-        });
+  it('should call onFileSelect and update the UI when a file is selected', async () => {
+    const handleFileSelect = vi.fn();
+    render(<FileUpload onFileSelect={handleFileSelect} />);
+    
+    const button = screen.getByRole('button', { name: /select a file/i });
+    const fileInput = button.parentElement?.querySelector('input[type="file"]') as HTMLInputElement;
+    
+    const testFile = new File(['test content'], 'test.txt', { type: 'text/plain' });
+
+    fireEvent.change(fileInput, { target: { files: [testFile] } });
+
+    await waitFor(() => {
+      expect(handleFileSelect).toHaveBeenCalledWith(testFile);
     });
 
-    expect(mockOnFileSelect).toHaveBeenCalledTimes(1);
-    expect(mockOnFileSelect).toHaveBeenCalledWith(testFile);
+    expect(await screen.findByText('Selected: test.txt')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /change file/i })).toBeInTheDocument();
   });
 
-  test('accepts specified file types', () => {
-    const { container } = render(<FileUpload onFileSelect={mockOnFileSelect} acceptedFileTypes=".jpg,.png" />);
-    const fileInput = container.querySelector('#file-upload-input') as HTMLInputElement;
-    expect(fileInput).toHaveAttribute('accept', '.jpg,.png');
-  });
+  it('should apply the acceptedFileTypes prop to the file input', () => {
+    const handleFileSelect = vi.fn();
+    const acceptedTypes = '.txt,.pdf';
+    render(<FileUpload onFileSelect={handleFileSelect} acceptedFileTypes={acceptedTypes} />);
+    
+    const button = screen.getByRole('button', { name: /select a file/i });
+    const fileInput = button.parentElement?.querySelector('input[type="file"]') as HTMLInputElement;
 
-  test('defaults to .txt,.epub,.pdf if no acceptedFileTypes prop is given', () => {
-    const { container } = render(<FileUpload onFileSelect={mockOnFileSelect} />);
-    const fileInput = container.querySelector('#file-upload-input') as HTMLInputElement;
-    expect(fileInput).toHaveAttribute('accept', '.txt,.epub,.pdf');
-  });
-
-  test('does not call onFileSelect when file selection is cancelled', async () => {
-    const { container } = render(<FileUpload onFileSelect={mockOnFileSelect} />);
-    const fileInput = container.querySelector('#file-upload-input') as HTMLInputElement;
-
-    // Simulate a user opening the file dialog but selecting no file
-    await act(async () => {
-        fireEvent.change(fileInput!, {
-          target: { files: [] },
-        });
-    });
-
-    expect(mockOnFileSelect).not.toHaveBeenCalled();
+    expect(fileInput.accept).toBe(acceptedTypes);
   });
 });

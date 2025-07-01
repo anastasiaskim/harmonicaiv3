@@ -162,7 +162,7 @@ export interface AudiobookDetailsResponse {
     cover_image_url: string | null;
     status: string | null;
     // Add other ebook fields as needed
-  };
+  } | null;
   chapters: ChapterDetail[];
   message?: string; // Optional message
 }
