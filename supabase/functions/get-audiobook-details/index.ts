@@ -1,19 +1,22 @@
 // supabase/functions/get-audiobook-details/index.ts
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 console.log('`get-audiobook-details` function initializing...');
 
 serve(async (req: Request) => {
   // Get the origin from the request headers
-  const origin = req.headers.get('Origin') || '';
+  const requestOrigin = req.headers.get('Origin');
+  
+  // Get dynamic CORS headers based on the request origin
+  const corsHeaders = getCorsHeaders(requestOrigin);
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { 
       headers: {
-        ...corsHeaders(origin),
+        ...corsHeaders,
         'Content-Type': 'text/plain',
         'Content-Length': '2',
       }
@@ -34,7 +37,7 @@ serve(async (req: Request) => {
     console.error('Failed to initialize Supabase client:', e.message);
     return new Response(JSON.stringify({ error: 'Failed to initialize Supabase client.' }), {
       headers: { 
-        ...corsHeaders(origin),
+        ...corsHeaders,
         'Content-Type': 'application/json' 
       },
       status: 500,
@@ -93,7 +96,7 @@ serve(async (req: Request) => {
     console.log(`Successfully fetched details for ebook ${ebookId} with ${chaptersData?.length || 0} chapters.`);
     return new Response(JSON.stringify({ ebook: ebookData, chapters: chaptersData || [] }), {
       headers: { 
-        ...corsHeaders(origin),
+        ...corsHeaders,
         'Content-Type': 'application/json' 
       },
       status: 200,
@@ -113,7 +116,7 @@ serve(async (req: Request) => {
     }
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { 
-        ...corsHeaders(origin),
+        ...corsHeaders,
         'Content-Type': 'application/json' 
       },
       status: 500,
