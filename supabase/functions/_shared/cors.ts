@@ -1,4 +1,5 @@
 const allowedOrigins = [
+  'https://harmonicaiv3-h5n2vq1dn-anastasiastkim.vercel.app',
   'https://harmonicaiv3-5ujpn1o4a-anastasiastkim.vercel.app',
   'https://harmonicaiv3-l1bpxp9zl-anastasiastkim.vercel.app',
   'http://localhost:3000',

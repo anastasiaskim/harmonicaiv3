@@ -1,275 +1,130 @@
-// supabase/functions/upload-ebook/index.ts
-
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { corsHeaders } from 'shared/cors.ts';
-import * as zip from '@zip.js/zip.js';
+import { serve } from 'std/http/server.ts';
+import { createClient } from '@supabase/supabase-js';
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { BlobReader, BlobWriter, ZipReader } from '@zip.js/zip.js';
 import { parse } from 'xml/mod.ts';
 
-// Add debug logging
-console.log('Upload-ebook function starting...');
-
-// Type definitions
-interface EpubSection {
-  html: string;
-  title: string;
-}
-
-interface HandlerDependencies {
-  supabaseClient: SupabaseClient;
-  parseEpub: (file: File) => Promise<{ sections: EpubSection[] }>;
-}
-
-// Utility function to convert HTML to clean text for TTS
+// Utility function to strip HTML tags
 function stripHtml(html: string): string {
-  if (!html) return '';
-
-  // 1. Decode common HTML entities
-  let text = html
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
-
-  // 2. Replace block-level tags with newlines to preserve structure
-  text = text.replace(/<p[^>]*>/gi, '\n\n'); // Paragraphs
-  text = text.replace(/<br[^>]*>/gi, '\n');   // Line breaks
-  text = text.replace(/<h[1-6][^>]*>/gi, '\n\n'); // Headings
-  text = text.replace(/<\/h[1-6]>/gi, '\n\n');
-  text = text.replace(/<li[^>]*>/gi, '\n* '); // List items
-
-  // 3. Remove all remaining HTML tags
-  text = text.replace(/<[^>]*>?/gm, '');
-
-  // 4. Clean up extra whitespace and newlines
-  text = text.replace(/\n\s*\n/g, '\n\n'); // Consolidate multiple newlines
-  text = text.trim();
-
-  return text;
+  // This function cleans HTML content to plain text.
+  return html.replace(/<style[^>]*>.*<\/style>/gs, '') // remove style blocks
+             .replace(/<[^>]*>/g, '') // remove all other tags
+             .replace(/\s+/g, ' ') // replace multiple whitespace with single space
+             .trim();
 }
 
-// The core logic, now testable and separated.
-export async function handleUpload(
-  req: Request,
-  { supabaseClient, parseEpub }: HandlerDependencies
-): Promise<Response> {
-  const origin = req.headers.get('Origin') || '';
-  const headers = corsHeaders(origin);
+serve(async (req: Request) => {
+  const requestOrigin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(requestOrigin);
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers });
+    return new Response('ok', { headers: corsHeaders });
   }
 
-  let ebook_id: number | null = null;
-
   try {
-    console.log('Function received a request.');
+    // 1. Initialize Supabase client with user's auth token
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+    );
+
+    // 2. Authenticate user
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      });
+    }
+
+    // 3. Get file from request
     const formData = await req.formData();
     const file = formData.get('file') as File;
+    const fileName = file.name;
 
     if (!file) {
-      return new Response(
-        JSON.stringify({ error: 'File not found in form data. Make sure the key is "file".' }),
-        { headers: { ...headers, 'Content-Type': 'application/json' }, status: 400 }
-      );
+      return new Response(JSON.stringify({ error: 'No file provided' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      });
     }
 
-    const file_name = file.name;
-    console.log('File received from form data:', {
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      lastModified: file.lastModified,
-      // @ts-ignore - webkitRelativePath might not exist in all environments
-      webkitRelativePath: file.webkitRelativePath,
+    // 4. Process EPUB file
+    const zipReader = new ZipReader(new BlobReader(file));
+    const entries = await zipReader.getEntries();
+
+    // Find the content.opf file to determine chapter order
+    const contentOpfEntry = entries.find(entry => entry.filename.endsWith('.opf'));
+    if (!contentOpfEntry) {
+      throw new Error('content.opf not found in EPUB');
+    }
+    const opfText = await contentOpfEntry.getData(new BlobWriter('text/xml'));
+    const opfXml: any = parse(await opfText.text());
+
+    const manifestItems = opfXml.package.manifest.item;
+    const spineItems = opfXml.package.spine.itemref;
+
+    const manifestMap = new Map<string, string>();
+    manifestItems.forEach((item: any) => {
+      manifestMap.set(item['@id'], item['@href']);
     });
 
-    // Validate file type
-    if (!file_name.toLowerCase().endsWith('.epub')) {
-      throw new Error('Invalid file type. Please upload an EPUB file.');
-    }
+    const opfPathParts = contentOpfEntry.filename.split('/');
+    const basePath = opfPathParts.length > 1 ? opfPathParts.slice(0, -1).join('/') + '/' : '';
 
-    // Get user from JWT to satisfy RLS
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), { status: 401, headers });
-    }
-
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-    if (userError || !user) {
-      console.error('Error getting user:', userError);
-      return new Response(JSON.stringify({ error: 'Authentication error: Could not get user.' }), { status: 401, headers });
-    }
-    const user_id = user.id;
-
-    // 1. Insert into the ebooks table first to get an ID
-    console.log('Attempting to insert into ebooks table...');
+    // 5. Insert ebook record
     const { data: ebookData, error: ebookError } = await supabaseClient
       .from('ebooks')
-      .insert({ file_name: file_name, title: file_name, status: 'processing', user_id: user_id })
+      .insert({ user_id: user.id, file_name: fileName })
       .select()
       .single();
 
-    if (ebookError) {
-      console.error('Error inserting into ebooks table:', ebookError);
-      throw ebookError;
-    }
-    console.log(`Successfully inserted ebook with ID: ${ebookData.id}`);
-    ebook_id = ebookData.id;
+    if (ebookError) throw ebookError;
 
-    try {
-      // 2. Parse the EPUB file using the injected dependency
-      const { sections } = await parseEpub(file);
+    const ebookId = ebookData.id;
 
-      // 3. Process and insert chapters
-      const chapters = sections.map((section, index) => ({
-        chapter_number: index + 1,
-        part_number: 1,
-        title: section.title || `Chapter ${index + 1}`,
-        text_content: stripHtml(section.html),
-        ebook_id: ebook_id,
-        status: 'pending',
-      }));
+    // 6. Read and process chapters in order
+    const chapters = [];
+    for (const itemref of spineItems) {
+      const idref = itemref['@idref'];
+      const href = manifestMap.get(idref);
+      if (!href) continue;
 
-      // Filter out empty chapters
-      const nonEmptyChapters = chapters.filter(ch => ch.text_content && ch.text_content.trim().length > 0);
+      const chapterEntry = entries.find(entry => entry.filename === `${basePath}${href}`);
+      if (!chapterEntry) continue;
 
-      if (nonEmptyChapters.length === 0) {
-        throw new Error('Ebook has no text content after parsing.');
-      }
-
-      console.log(`Inserting ${nonEmptyChapters.length} non-empty chapters into the database...`);
-      const { error: chapterError } = await supabaseClient.from('chapters').insert(nonEmptyChapters);
-
-      if (chapterError) {
-        console.error('Error inserting chapters:', chapterError);
-        throw chapterError;
-      }
-
-      // 4. Update ebook status to 'processed'
-      await supabaseClient.from('ebooks').update({ status: 'processed' }).eq('id', ebook_id);
-
-      console.log('Ebook processed successfully.');
-
-      // Return a success response with a simple payload
-      return new Response(JSON.stringify({ 
-        message: 'Ebook uploaded and processed successfully',
-        ebook_id: ebook_id
-      }), { headers });
-
-    } catch (processingError: unknown) {
-      console.error('An error occurred during EPUB processing:', processingError);
+      const chapterHtml = await chapterEntry.getData(new BlobWriter('text/html'));
+      const chapterText = await chapterHtml.text();
       
-      if (ebook_id) {
-        const errorMessage = processingError instanceof Error ? processingError.message : 'An unknown error occurred during processing.';
-        console.error('Updating ebook status to failed with message:', errorMessage);
-        
-        await supabaseClient
-          .from('ebooks')
-          .update({ 
-            status: 'failed', 
-            status_message: errorMessage,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', ebook_id);
-      }
-      
-      // Re-throw the error to be caught by the outer catch
-      throw processingError;
-    }
-  } catch (error: unknown) {
-    console.error('An error occurred in the upload-ebook function:', error);
-    
-    let errorMessage: string;
-    const errorStack = error instanceof Error ? error.stack : undefined;
+      const bodyMatch = chapterText.match(/<body[^>]*>([\s\S]*)<\/body>/);
+      const rawText = bodyMatch ? bodyMatch[1] : chapterText;
+      const cleanedText = stripHtml(rawText);
 
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    } else if (typeof error === 'string') {
-      errorMessage = error;
-    } else if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
-      errorMessage = (error as { message: string }).message;
-    } else {
-      errorMessage = 'An unknown internal error occurred.';
+      chapters.push({
+        ebook_id: ebookId,
+        chapter_number: chapters.length + 1,
+        text_content: cleanedText,
+      });
     }
 
-    // The frontend expects the specific error message in the 'error' property.
-    // This change puts the specific message in the 'error' property for clearer feedback.
-    return new Response(
-      JSON.stringify({ error: errorMessage, stack: errorStack }),
-      { headers: { ...headers, 'Content-Type': 'application/json' }, status: 500 }
-    );
-  }
-}
+    // 7. Insert chapter records
+    const { error: chaptersError } = await supabaseClient.from('chapters').insert(chapters);
+    if (chaptersError) throw chaptersError;
 
-// This is the actual implementation of the EPUB parser.
-async function parseEpub(file: File): Promise<{ sections: EpubSection[] }> {
-  let zipReader: zip.ZipReader<Blob> | null = null;
-  try {
-    const fileBuffer = await file.arrayBuffer();
-    if (fileBuffer.byteLength === 0) {
-      throw new Error('Uploaded file is empty');
-    }
+    await zipReader.close();
 
-    const fileBlob = new Blob([fileBuffer], { type: 'application/epub+zip' });
-    const blobReader = new zip.BlobReader(fileBlob);
-    zipReader = new zip.ZipReader(blobReader) as zip.ZipReader<Blob>;
-    const entries = await zipReader.getEntries();
-
-    if (!entries || entries.length === 0) {
-      throw new Error('EPUB file is empty or corrupted (no entries found in zip).');
-    }
-
-    const containerEntry = entries.find(entry => entry.filename.endsWith('container.xml'));
-    if (!containerEntry || typeof containerEntry.getData !== 'function') {
-      throw new Error('container.xml not found or is invalid in EPUB');
-    }
-    const containerXml = await containerEntry.getData(new zip.TextWriter());
-    const containerDoc = parse(containerXml) as Record<string, any>;
-    const contentPath = containerDoc.container.rootfiles.rootfile['@full-path'];
-
-    const contentEntry = entries.find(entry => entry.filename.endsWith(contentPath));
-    if (!contentEntry || typeof contentEntry.getData !== 'function') {
-      throw new Error('content.opf not found or is invalid at path: ' + contentPath);
-    }
-    const contentXml = await contentEntry.getData(new zip.TextWriter());
-    const contentDoc = parse(contentXml) as Record<string, any>;
-
-    const manifestItems = new Map();
-    contentDoc.package.manifest.item.forEach((item: Record<string, any>) => {
-      manifestItems.set(item['@id'], item['@href']);
+    return new Response(JSON.stringify({ ebook_id: ebookId }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
     });
 
-    const spineRefs = contentDoc.package.spine.itemref.map((ref: Record<string, any>) => ref['@idref']);
-
-    const sections: EpubSection[] = [];
-    for (const idref of spineRefs) {
-      const href = manifestItems.get(idref);
-      const chapterEntry = entries.find(entry => entry.filename.endsWith(href));
-      if (chapterEntry && typeof chapterEntry.getData === 'function') {
-        const html = await chapterEntry.getData(new zip.TextWriter());
-        const title = manifestItems.get(idref) || `Chapter ${sections.length + 1}`;
-        sections.push({ html, title });
-      }
-    }
-
-    console.log(`Successfully extracted ${sections.length} sections from EPUB.`);
-    return { sections };
-  } finally {
-    if (zipReader) {
-      await zipReader.close();
-    }
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    });
   }
-}
-
-// The Deno.serve call is now just a wrapper that provides the real dependencies.
-Deno.serve((req: Request) => {
-  const supabaseClient = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
-  );
-
+});
   return handleUpload(req, { supabaseClient, parseEpub });
 });
