@@ -1,47 +1,20 @@
-// supabase/functions/_shared/cors.ts
+const allowedOrigins = [
+  'https://harmonicaiv3-5ujpn1o4a-anastasiastkim.vercel.app',
+  'https://harmonicaiv3-l1bpxp9zl-anastasiastkim.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173'
+];
 
-/**
- * Determines if the origin is allowed based on domain patterns
- * @param origin The origin to check
- * @returns boolean indicating if the origin is allowed
- */
-const isOriginAllowed = (origin: string): boolean => {
-  if (!origin) return false;
-  
-  // List of allowed origins and patterns
-  const exactOrigins = [
-    'http://localhost:3000',  // Local development
-    'https://harmonicaiv3.vercel.app',  // Production Vercel domain
-    'https://ymqniyhlhheafnpttgqq.supabase.co'  // Supabase domain
-  ];
-
-  // Check for exact match
-  if (exactOrigins.includes(origin)) {
-    return true;
-  }
-
-  // Check for Vercel preview domains
-  if (origin.match(/https:\/\/harmonicaiv3-[\w-]+\.vercel\.app/) ||
-      origin.endsWith('.vercel.app')) {
-    return true;
-  }
-
-  return false;
-};
-
-/**
- * Generate CORS headers based on the request origin
- */
-export const corsHeaders = (origin: string) => {
-  // Use the requesting origin if it's allowed, otherwise use a default
-  const allowedOrigin = isOriginAllowed(origin) ? origin : '*';
-  
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+export const getCorsHeaders = (requestOrigin: string | null) => {
+  const headers = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Credentials': 'true',
-    'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Origin': allowedOrigins[0] // Default origin
   };
-};
 
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    headers['Access-Control-Allow-Origin'] = requestOrigin;
+  }
+
+  return headers;
+};

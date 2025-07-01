@@ -1,10 +1,13 @@
 import { serve } from 'std/http/server.ts'
 import { createClient } from '@supabase/supabase-js'
-import { corsHeaders } from 'shared/cors.ts'
+import { getCorsHeaders } from 'shared/cors.ts'
 
 serve(async (req: Request) => {
+  const requestOrigin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(requestOrigin);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
