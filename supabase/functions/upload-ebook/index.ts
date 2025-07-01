@@ -152,10 +152,10 @@ export async function handleUpload(
 
       console.log('Ebook processed successfully.');
 
-      // Return a success response
+      // Return a success response with a simple payload
       return new Response(JSON.stringify({ 
         message: 'Ebook uploaded and processed successfully',
-        ebook: { id: ebook_id, title: file_name, chapters: nonEmptyChapters }
+        ebook_id: ebook_id
       }), { headers });
 
     } catch (processingError: unknown) {
