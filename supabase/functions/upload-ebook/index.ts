@@ -126,5 +126,3 @@ serve(async (req: Request) => {
     });
   }
 });
-  return handleUpload(req, { supabaseClient, parseEpub });
-});
