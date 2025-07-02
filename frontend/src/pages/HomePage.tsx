@@ -256,6 +256,12 @@ const HomePage: React.FC = () => {
         })
         .then(() => {
           console.log('Creating new Audio object with URL:', chapterToPlay.audio_url);
+          // TypeScript safety: we already checked that audio_url exists above, but add an explicit check here
+          if (!chapterToPlay.audio_url) {
+            console.error('Audio URL is null or undefined');
+            toast.error('Audio URL is missing');
+            return;
+          }
           const newAudio = new Audio(chapterToPlay.audio_url);
           
           // Add more detailed error handling
@@ -373,6 +379,21 @@ const HomePage: React.FC = () => {
 
         {chapters.length > 0 && (
           <div className="mt-8">
+            {/* Use IIFE pattern to avoid 'void' TypeScript errors */}
+            {(() => {
+              console.log('Chapters data before rendering:', JSON.stringify(chapters, null, 2));
+              chapters.forEach(chapter => {
+                if (chapter.audio_url) {
+                  console.log(`Checking audio URL for chapter ${chapter.chapter_number}:`, chapter.audio_url);
+                  fetch(chapter.audio_url, { method: 'HEAD' })
+                    .then(response => console.log(`Audio URL ${chapter.audio_url} status:`, response.status))
+                    .catch(error => console.error(`Error checking audio URL ${chapter.audio_url}:`, error));
+                } else {
+                  console.log(`No audio URL for chapter ${chapter.chapter_number}, status: ${chapter.status}`);
+                }
+              });
+              return null; // Return null to avoid rendering issues
+            })()}
             <ChapterList
               chapters={chapters}
               onPlayChapter={handlePlayChapter}

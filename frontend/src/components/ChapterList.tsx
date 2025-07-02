@@ -32,6 +32,8 @@ const ChapterList: React.FC<ChapterListProps> = ({
   onDownloadChapter, 
   currentPlayingChapterId
 }) => {
+  console.log('ChapterList received chapters:', JSON.stringify(chapters, null, 2));
+  console.log('Current playing chapter ID:', currentPlayingChapterId);
   if (!chapters || chapters.length === 0) {
     // This case is handled by the parent component (HomePage) now, 
     // but good to keep a fallback or remove if HomePage guarantees chapters are present when list is shown.
@@ -42,7 +44,7 @@ const ChapterList: React.FC<ChapterListProps> = ({
   const getStatusBadge = (status: Chapter['status']) => {
     switch (status) {
       case 'complete':
-        return <Badge variant="success" className="flex items-center"><CircleCheck className="mr-1 h-3 w-3" /> Complete</Badge>;
+        return <Badge variant="default" className="flex items-center bg-green-100 text-green-800 hover:bg-green-100"><CircleCheck className="mr-1 h-3 w-3" /> Complete</Badge>;
       case 'processing_tts':
         return <Badge variant="outline" className="flex items-center text-blue-600 border-blue-600"><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Processing</Badge>;
       case 'pending_tts':
@@ -73,8 +75,21 @@ const ChapterList: React.FC<ChapterListProps> = ({
             </div>
           </div>
           <div className="flex items-center space-x-2 flex-shrink-0 mt-2 sm:mt-0">
+            {(() => {
+              console.log(`Rendering chapter ${chapter.chapter_number}:`, {
+                id: chapter.id,
+                status: chapter.status,
+                audio_url: chapter.audio_url,
+                condition_result: chapter.status === 'complete' && chapter.audio_url
+              });
+              return null;
+            })()}
             {chapter.status === 'complete' && chapter.audio_url ? (
               <>
+                {(() => {
+                  console.log(`Rendering ENABLED play button for chapter ${chapter.chapter_number}`);
+                  return null;
+                })()}
                 <Button
                   variant={currentPlayingChapterId === chapter.id ? "outline" : "default"}
                   size="sm"
@@ -102,13 +117,20 @@ const ChapterList: React.FC<ChapterListProps> = ({
                 </Button>
               </>
             ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled
-              >
-                <Play className="mr-2 h-4 w-4" /> Play
-              </Button>
+              <>
+                {(() => {
+                  console.log(`Rendering DISABLED play button for chapter ${chapter.chapter_number}. Reason:`, 
+                    chapter.status !== 'complete' ? `Status is ${chapter.status}, not 'complete'` : 'No audio_url available');
+                  return null;
+                })()}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                >
+                  <Play className="mr-2 h-4 w-4" /> Play
+                </Button>
+              </>
             )}
           </div>
         </div>
