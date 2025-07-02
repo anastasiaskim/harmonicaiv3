@@ -78,7 +78,12 @@ const ChapterList: React.FC<ChapterListProps> = ({
                 <Button
                   variant={currentPlayingChapterId === chapter.id ? "outline" : "default"}
                   size="sm"
-                  onClick={() => onPlayChapter(chapter.id)}
+                  onClick={() => {
+                    console.log('Play button clicked for chapter:', chapter);
+                    console.log('Chapter status:', chapter.status);
+                    console.log('Chapter audio_url:', chapter.audio_url);
+                    onPlayChapter(chapter.id);
+                  }}
                   aria-label={currentPlayingChapterId === chapter.id ? `Stop chapter ${chapter.chapter_number}` : `Play chapter ${chapter.chapter_number}`}
                 >
                   {currentPlayingChapterId === chapter.id ? 
