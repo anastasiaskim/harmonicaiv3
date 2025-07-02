@@ -220,25 +220,72 @@ const HomePage: React.FC = () => {
 
   const handlePlayChapter = (chapterId: string) => {
     const chapterToPlay = chapters.find(ch => ch.id === chapterId);
-    if (!chapterToPlay || !chapterToPlay.audio_url) {
+    console.log('Chapter to play:', chapterToPlay);
+    
+    if (!chapterToPlay) {
+      console.error('Chapter not found:', chapterId);
+      toast.error('Chapter not found.');
+      return;
+    }
+    
+    if (!chapterToPlay.audio_url) {
+      console.error('Audio URL is missing for chapter:', chapterId);
       toast.error('Audio for this chapter is not available.');
       return;
     }
+    
+    console.log('Attempting to play audio from URL:', chapterToPlay.audio_url);
 
     if (playingChapterId === chapterId) {
+      console.log('Stopping playback of current chapter');
       currentAudio?.pause();
       setPlayingChapterId(null);
     } else {
       currentAudio?.pause();
-      const newAudio = new Audio(chapterToPlay.audio_url);
-      setCurrentAudio(newAudio);
-      setPlayingChapterId(chapterId);
-      newAudio.play().catch(e => {
-        console.error('Error playing audio:', e);
-        toast.error('Could not play audio.');
-        setPlayingChapterId(null);
-      });
-      newAudio.onended = () => setPlayingChapterId(null);
+      
+      // Test if the audio URL is accessible
+      fetch(chapterToPlay.audio_url, { method: 'HEAD' })
+        .then(response => {
+          console.log('Audio URL fetch response:', response);
+          if (!response.ok) {
+            throw new Error(`Audio file not accessible: ${response.status} ${response.statusText}`);
+          }
+          return response;
+        })
+        .then(() => {
+          console.log('Creating new Audio object with URL:', chapterToPlay.audio_url);
+          const newAudio = new Audio(chapterToPlay.audio_url);
+          
+          // Add more detailed error handling
+          newAudio.onerror = (e) => {
+            console.error('Audio error event:', e);
+            console.error('Audio error code:', (newAudio.error ? newAudio.error.code : 'unknown'));
+            console.error('Audio error message:', (newAudio.error ? newAudio.error.message : 'unknown'));
+            toast.error(`Audio error: ${newAudio.error ? newAudio.error.message : 'Unknown error'}`);
+            setPlayingChapterId(null);
+          };
+          
+          newAudio.onloadstart = () => console.log('Audio loading started');
+          newAudio.oncanplay = () => console.log('Audio can start playing');
+          newAudio.onended = () => {
+            console.log('Audio playback ended');
+            setPlayingChapterId(null);
+          };
+          
+          setCurrentAudio(newAudio);
+          setPlayingChapterId(chapterId);
+          
+          console.log('Attempting to play audio...');
+          newAudio.play().catch(e => {
+            console.error('Error playing audio:', e);
+            toast.error(`Could not play audio: ${e.message}`);
+            setPlayingChapterId(null);
+          });
+        })
+        .catch(error => {
+          console.error('Error accessing audio file:', error);
+          toast.error(`Could not access audio file: ${error.message}`);
+        });
     }
   };
 
