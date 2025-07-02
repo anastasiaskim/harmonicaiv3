@@ -30,6 +30,8 @@ import { supabase } from '../supabaseClient';
 const POLLING_INTERVAL = 5000; // 5 seconds
 
 const HomePage: React.FC = () => {
+  console.log('HomePage component loaded - UPDATED VERSION WITH DEBUGGING');
+
   const [session, setSession] = useState<Session | null>(null);
   const [text, setText] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
