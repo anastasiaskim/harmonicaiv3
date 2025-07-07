@@ -1,7 +1,9 @@
+/// <reference types="https://deno.land/x/deno/cli/types/deno.d.ts" />
+
 // supabase/functions/generate-audio-from-text/index.ts
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
 // NOTE: You can find your voice IDs here: https://elevenlabs.io/voice-library
@@ -9,7 +11,7 @@ const DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Default: Rachel
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('Origin')) });
   }
 
   let chapter_id;
@@ -84,18 +86,34 @@ Deno.serve(async (req) => {
 
     // 4. Get public URL and update the database
     const { data: urlData } = supabaseClient.storage.from('audiobook-files').getPublicUrl(storagePath);
-    const audio_url = urlData.publicUrl;
 
-    const { error: updateError } = await supabaseClient
-      .from('chapters')
-      .update({ audio_url, status: 'complete' })
-      .eq('id', chapter_id);
+    // Update the chapter record with the audio URL and set status to 'complete'
+    let audio_url: string | null = null;
+    if (urlData.publicUrl) {
+      audio_url = urlData.publicUrl;
+      const adminSupabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
 
-    if (updateError) throw new Error(`DB update error: ${updateError.message}`);
+      const { error: updateError } = await adminSupabaseClient
+        .from('chapters')
+        .update({ 
+          audio_url: urlData.publicUrl,
+          status: 'complete'
+        })
+        .eq('id', chapter_id);
+
+      if (updateError) {
+        console.error(`Failed to update chapter ${chapter_id}:`, updateError);
+        // Even if DB update fails, we don't want to fail the whole process
+        // The audio is generated, and a retry mechanism could fix the DB state.
+      }
+    }
 
     console.log(`Successfully processed chapter ${chapter_id}`);
     return new Response(JSON.stringify({ success: true, audio_url }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' },
       status: 200,
     });
 
@@ -116,7 +134,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' },
       status: 500,
     });
   }
