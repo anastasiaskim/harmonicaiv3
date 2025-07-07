@@ -1,7 +1,8 @@
 // A list of static origins that are always allowed
 const staticOrigins = [
   'http://localhost:3000',
-  'http://localhost:5173'
+  'http://localhost:5173',
+  'https://harmonicaiv3.vercel.app'
 ];
 
 // A regular expression to match Vercel preview deployments
